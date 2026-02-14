@@ -4,11 +4,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -19,16 +19,17 @@ import java.util.Set;
 public class ModerationDictionaryUtil {
     private final Set<String> bannedWords;
 
-    public ModerationDictionaryUtil(@Value("${moderation.banned-words-path}") String filePath) {
+    public ModerationDictionaryUtil(@Value("${moderation.banned-words-path}") Resource resource) {
         Set<String> words = new HashSet<>();
         try {
-            String content = Files.readString(Path.of(filePath));
-            ObjectMapper objectMapper = new ObjectMapper();
-            BannedWordsContainer container = objectMapper.readValue(content, BannedWordsContainer.class);
-            words = new HashSet<>(container.bannedWords());
-            log.info("Loaded {} banned words from {}", words.size(), filePath);
+            try (InputStream is = resource.getInputStream()) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                BannedWordsContainer container = objectMapper.readValue(is, BannedWordsContainer.class);
+                words = new HashSet<>(container.bannedWords());
+                log.info("Loaded {} banned words from {}", words.size(), resource.getFilename());
+            }
         } catch (IOException e) {
-            log.error("Failed to load banned words from {}: {}", filePath, e.getMessage());
+            log.error("Failed to load banned words from {}: {}", resource.getFilename(), e.getMessage());
         }
         this.bannedWords = Collections.unmodifiableSet(words);
     }

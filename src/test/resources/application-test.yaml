@@ -1,4 +1,14 @@
 spring:
+  datasource:
+    hikari:
+      schema: public
+  jpa:
+    properties:
+      hibernate:
+        default_schema: public
+  liquibase:
+    default-schema: public
+    liquibase-schema: public
   kafka:
     consumer:
       auto-offset-reset: earliest

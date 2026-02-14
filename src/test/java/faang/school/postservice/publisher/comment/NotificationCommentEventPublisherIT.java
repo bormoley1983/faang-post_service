@@ -7,15 +7,12 @@ import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Post;
 import faang.school.postservice.model.event.NotificationCommentEvent;
 import faang.school.postservice.service.AsyncModerationService;
-import faang.school.postservice.service.CommentService;
-import faang.school.postservice.service.PostService;
 import faang.school.postservice.util.ModerationDictionaryUtil;
 import faang.school.postservice.validation.ModerationDictionaryValidation;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

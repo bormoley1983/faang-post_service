@@ -2,6 +2,7 @@ package faang.school.postservice.util;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.FileSystemResource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,7 +24,7 @@ class ModerationDictionaryValidationUtilTest {
         String jsonContent = "{ \"bannedWords\": [\"badword1\", \"badword2\", \"offensiveword\"] }";
         Files.writeString(tempFile, jsonContent);
 
-        moderationDictionaryUtil = new ModerationDictionaryUtil(tempFile.toString());
+        moderationDictionaryUtil = new ModerationDictionaryUtil(new FileSystemResource(tempFile));
     }
 
     @Test
