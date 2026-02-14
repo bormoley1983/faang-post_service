@@ -15,6 +15,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -22,7 +25,6 @@ public class SpellCheckerServiceTest {
 
     private static final String SPELLER_URL = "https://speller.yandex.net/services/spellservice.json/checkText";
 
-    private String spellerUrl = "https://speller.yandex.net/services/spellservice.json/checkTexts";
     @Mock
     private RestTemplate restTemplate;
 
@@ -34,7 +36,7 @@ public class SpellCheckerServiceTest {
 
     @BeforeEach
     void setUp() {
-        spellCheckerService = new SpellCheckerService(restTemplate, spellerUrl, spellerConfig);
+        spellCheckerService = new SpellCheckerService(restTemplate, SPELLER_URL, spellerConfig);
     }
 
     @Test

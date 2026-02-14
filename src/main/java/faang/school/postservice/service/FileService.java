@@ -12,7 +12,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
-import java.awt.Image;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -151,7 +150,6 @@ public class FileService {
         }
 
         if (width != newWidth || height != newHeight) {
-            Image tmp = image.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
             BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
             Graphics2D g2d = resized.createGraphics();
             //drawImage - resource intensive, replaced with AffineTransform

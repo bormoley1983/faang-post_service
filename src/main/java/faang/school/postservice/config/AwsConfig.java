@@ -19,16 +19,16 @@ import java.net.URI;
 @Getter
 public class AwsConfig {
 
-    @Value("${services.s3.endpoint}")
+    @Value("${aws.s3.endpoint}")
     private String endpoint;
 
-    @Value("${services.s3.accessKey}")
+    @Value("${aws.s3.accessKey}")
     private String accessKey;
 
-    @Value("${services.s3.secretKey}")
+    @Value("${aws.s3.secretKey}")
     private String secretKey;
 
-    @Value("${services.s3.bucketName}")
+    @Value("${aws.s3.bucket}")
     private String bucketName;
 
     @Bean

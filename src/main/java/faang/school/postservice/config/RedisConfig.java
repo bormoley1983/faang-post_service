@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
@@ -40,8 +40,9 @@ public class RedisConfig {
         template.setConnectionFactory(redisConnectionFactory());
         template.setKeySerializer(new StringRedisSerializer());
 
-        Jackson2JsonRedisSerializer<T> serializer =
-                new Jackson2JsonRedisSerializer<>(type);
+        @SuppressWarnings("unchecked")
+        RedisSerializer<T> serializer = (RedisSerializer<T>) RedisSerializer.json();
+        template.setValueSerializer(serializer);
         template.setValueSerializer(serializer);
 
         template.afterPropertiesSet();

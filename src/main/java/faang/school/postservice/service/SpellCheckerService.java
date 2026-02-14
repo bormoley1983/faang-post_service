@@ -34,7 +34,7 @@ public class SpellCheckerService {
     }
 
     private UriComponents buildBaseUri() {
-        return UriComponentsBuilder.fromHttpUrl(spellerUrl)
+        return UriComponentsBuilder.fromUriString(spellerUrl)
                 .path("/checkTexts")
                 .build();
     }

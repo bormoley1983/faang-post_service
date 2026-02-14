@@ -22,9 +22,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -78,7 +76,6 @@ public class CommentServiceTest {
     private Comment comment;
     private Post post;
     private MultipartFile image;
-    private InputStream inputStream;
     private byte[] testBytes = {1, 2, 3, 4};
     private final Long POST_ID = 1L;
     private final Long AUTHOR_ID = 1L;
@@ -107,8 +104,6 @@ public class CommentServiceTest {
                 "test-file.png",
                 "image/png",
                 "exampledata".getBytes());
-
-        inputStream = new ByteArrayInputStream(testBytes);
     }
 
     @Test

@@ -6,25 +6,31 @@ import faang.school.postservice.config.kafka.KafkaTestConfig;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Post;
 import faang.school.postservice.model.event.NotificationCommentEvent;
+import faang.school.postservice.service.AsyncModerationService;
 import faang.school.postservice.service.CommentService;
 import faang.school.postservice.service.PostService;
+import faang.school.postservice.util.ModerationDictionaryUtil;
+import faang.school.postservice.validation.ModerationDictionaryValidation;
+
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.KafkaContainer;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
@@ -37,8 +43,6 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 @Testcontainers
 @SpringBootTest(
         properties = {
-                "spring.redis.host=localhost",
-                "spring.redis.port=6379",
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"
         }
 )
@@ -56,14 +60,54 @@ public class NotificationCommentEventPublisherIT {
     @Autowired
     private Consumer<String, String> consumer;
 
-    @MockBean
-    private CommentService commentService;
+    @MockitoBean
+    private AsyncModerationService asyncModerationService;
 
-    @MockBean
-    private PostService postService;
+    @MockitoBean
+    private ModerationDictionaryValidation moderationDictionaryValidation;
+
+    @MockitoBean
+    private ModerationDictionaryUtil moderationDictionaryUtil;
 
     private Post post;
     private Comment comment;
+
+    private static final DockerImageName POSTGRES_IMAGE = DockerImageName.parse("postgres:18-alpine");
+    private static final DockerImageName KAFKA_IMAGE = DockerImageName.parse("confluentinc/cp-kafka:7.7.7");
+
+    static Network testNetwork = Network.newNetwork();
+
+    @Container
+    @SuppressWarnings("resource")
+    protected static final PostgreSQLContainer<?> POSTGRESQL_CONTAINER = 
+        new PostgreSQLContainer<>(POSTGRES_IMAGE)
+            .withNetwork(testNetwork)
+            .withNetworkAliases("test-postgres")		        
+            .withDatabaseName("testdb")
+            .withUsername("test")
+            .withPassword("test")
+            .withReuse(true);
+
+    @Container
+    @SuppressWarnings("resource")
+    protected static final  ConfluentKafkaContainer KAFKA_CONTAINER = 
+        new ConfluentKafkaContainer(KAFKA_IMAGE)
+            .withNetwork(testNetwork)
+            .withNetworkAliases("test-kafka");
+
+    static {
+        POSTGRESQL_CONTAINER.start();
+        KAFKA_CONTAINER.start();
+    }            
+
+    @DynamicPropertySource
+    static void overrideProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.username", POSTGRESQL_CONTAINER::getUsername);
+        registry.add("spring.datasource.password", POSTGRESQL_CONTAINER::getPassword);
+        registry.add("spring.datasource.url", POSTGRESQL_CONTAINER::getJdbcUrl);
+
+        registry.add("spring.kafka.bootstrap-servers", KAFKA_CONTAINER::getBootstrapServers);
+    }
 
     @BeforeEach
     public void setup() {
@@ -74,23 +118,6 @@ public class NotificationCommentEventPublisherIT {
                 .post(post)
                 .content("test-comment")
                 .build();
-    }
-
-    @Container
-    static final KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.3.0"));
-
-    @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withUsername("user")
-            .withPassword("password");
-
-    @DynamicPropertySource
-    static void overrideProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-
-        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
     }
 
     @Test
@@ -107,5 +134,4 @@ public class NotificationCommentEventPublisherIT {
             assertThat(event.getCommentId()).isEqualTo(comment.getId());
         }
     }
-
 }

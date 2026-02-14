@@ -8,8 +8,6 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
@@ -25,6 +23,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -59,7 +58,6 @@ public class S3ServiceTest {
 
     @BeforeEach
     void setUp() {
-        Logger logger = LoggerFactory.getLogger(S3Service.class);
     }
 
     @Test
@@ -107,7 +105,7 @@ public class S3ServiceTest {
         String keyName = "test-key";
 
         PresignedGetObjectRequest presignedRequest = mock(PresignedGetObjectRequest.class);
-        when(presignedRequest.url()).thenReturn(new java.net.URL("http://example.com"));
+        when(presignedRequest.url()).thenReturn(URI.create("http://example.com").toURL());
         when(presignedRequest.httpRequest()).thenReturn(mock(software.amazon.awssdk.http.SdkHttpRequest.class));
         when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(presignedRequest);
 
@@ -119,6 +117,7 @@ public class S3ServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void testGetObjectBytes() {
         String bucketName = "test-bucket";
         String keyName = "test-key";

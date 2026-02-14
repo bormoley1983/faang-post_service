@@ -1,66 +1,97 @@
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: user
-    password: password
+    url: ${DATABASE_URL:jdbc:postgresql://host.docker.internal:5432/postgres}
+    username: ${DATABASE_USERNAME:user}
+    password: ${DATABASE_PASSWORD:password}
+    hikari:
+      auto-commit: false
+      schema: ${DATABASE_SCHEMA:post_service}
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: ${SHOW_SQL:true}
     properties:
       hibernate:
         format_sql: true
+        default_schema: ${DATABASE_SCHEMA:post_service}
+
   servlet:
     multipart:
       max-file-size: 10MB
 
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+    default-schema: ${DATABASE_SCHEMA:post_service}
+    liquibase-schema: ${DATABASE_SCHEMA:post_service}
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
     topics:
       analytics-comment-topic:
-        name: analytics_comment_topic
+        name: ${KAFKA_ANALYTICS_COMMENT_TOPIC:analytics_comment_topic}
       analytics-like-topic:
-        name: analytics-like-events
+        name: ${KAFKA_ANALYTICS_LIKE_EVENTS:analytics-like-events}
       notification-like-topic:
-        name: notification_like_topic
+        name: ${KAFKA_ANALYTICS_LIKE_TOPIC:notification_like_topic}
       notification-comment-topic:
-        name: notification_comment_topic
+        name: ${KAFKA_NOTIFICATION_COMMENT_TOPIC:notification_comment_topic}
       user-ban-topic:
-        name: user_ban_topic
+        name: ${KAFKA_USER_BAN_TOPIC:user_ban_topic}
       publish-post-topic:
-        name: publish_post_topic
+        name: ${KAFKA_PUBLISH_POST_TOPIC:publish_post_topic}
         subscribers-batch-size: 1000
       publish-post-view-topic:
-        name: public_post_view_topic
+        name: ${KAFKA_PUBLIC_POST_VIEW_TOPIC:public_post_view_topic}
 
   data:
     redis:
-      port: 6379
-      host: localhost
+      host: ${REDIS_URL:host.docker.internal}
+      port: ${REDIS_PORT:6379}
       ttl-days: 1
       channels:
         calculations_channel:
-          name: calculations_channel
+          name: ${REDIS_CALCULATIONS_CHANEL:calculations_channel}
+
+springdoc:
+  swagger-ui:
+    path: "/documentation.html"
+    enabled: ${SWAGGERUI_ENABLED:true}
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+  title: "Post service API"
+  version: "0.1.0.1"
+  description: "Post service gives the ability to write text posts to share your thoughts, knowledge and information with other users."
 
 server:
-  port: 8081
+  port: ${POST_SERVICE_PORT:8081}
 
 logging:
   level:
     root: info
+    liquibase: info
 
-services:
+aws:
   s3:
-    endpoint: http://localhost:9000
-    accessKey: user
-    secretKey: password
-    bucketName: corpbucket
+    endpoint: ${MINIO_SERVICE_HOST:http://localhost:9000}
+    accessKey: ${MINIO_ACCESS_KEY:user}
+    secretKey: ${MINIO_SECRET_KEY:password}
+    bucket: ${MINIO_BUCKET_NAME:corpbucket}
+    region: us-east-1
+    maxConcurrency: 50
+    connectionTimeout: 60s
+    readTimeout: 60s
+    writeTimeout: 60s
+    apiCallTimeout: 2m
+    apiCallAttemptTimeout: 90s    
 
 comment:
   image:
@@ -68,49 +99,29 @@ comment:
     smallImageMaxSize: 170
     max-file-size: 5MB
 
-
 project-protocol: http
-user-service:
-  host: localhost
-  port: 8080
-  endpoints:
-    getById: /api/v1/users/{id}
+
 project-service:
-  host: localhost
-  port: 8082
+  host: ${PROJECT_SERVICE_HOST:localhost}
+  port: ${PROJECT_SERVICE_PORT:8082}
   endpoints:
     getById: /api/v1/projects/{id}
+user-service:
+  host: ${USER_SERVICE_HOST:localhost}
+  port: ${USER_SERVICE_PORT:8080}  
+  endpoints:
+    getById: /api/v1/users/{id}
 payment-service:
-  host: localhost
-  port: 9080
+  host: ${PAYMENT_SERVICE_HOST:localhost}
+  port: ${PAYMENT_SERVICE_PORT:9080}
 
 moderation:
   cron: "0 0 0 * * ?"
   threadSize: 100
-  api-url: "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=AIzaSyCvYJUwADYD2pGzdhoY5QunJEgrvgPbbpg"
-  bad-words-path: "classpath:moderation/bad-words.json"
+  api-url: ${MODERATION_API_URL:"https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=AIzaSyCvYJUwADYD2pGzdhoY5QunJEgrvgPbbpg"}
+  bad-words-path: ${MODERATION_BAD_WORDS:"classpath:moderation/bad-words.json"}
   chunk-size: 500
-  banned-words-path: "src/main/resources/moderation/banned-words.json"
-
-
-api:
-  title: "Post service API"
-  version: "0.1.0.1"
-  description: "Post service gives the ability to write text posts to share your thoughts, knowledge and information with other users."
-
-aws:
-  s3:
-    endpoint: http://127.0.0.1:9000
-    accessKey: user
-    secretKey: password
-    bucket: corpbucket
-    region: us-east-1
-    maxConcurrency: 50
-    connectionTimeout: 60s
-    readTimeout: 60s
-    writeTimeout: 60s
-    apiCallTimeout: 2m
-    apiCallAttemptTimeout: 90s
+  banned-words-path: ${MODERATION_BANNED_WORDS:"classpath:moderation/banned-words.json"}
 
 rest-template:
   config:
@@ -156,7 +167,7 @@ app:
     max-size: 10
     queue-capacity: 100
   speller:
-    url: "https://speller.yandex.net/services/spellservice.json"
+    url: ${SPELLCHECKER_URL:"https://speller.yandex.net/services/spellservice.json"}
     max-request-uri-length: 10000
     max-content-length: 4096
     base-url-length: 70

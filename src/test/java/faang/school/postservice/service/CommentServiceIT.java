@@ -10,20 +10,22 @@ import faang.school.postservice.model.event.AnalyticsCommentEvent;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.KafkaContainer;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.shaded.org.awaitility.Awaitility;
 import org.testcontainers.utility.DockerImageName;
 
@@ -32,7 +34,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
@@ -42,10 +44,21 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 public class CommentServiceIT {
 
+    
+    private static final DockerImageName KAFKA_IMAGE = DockerImageName.parse("confluentinc/cp-kafka:7.7.7");
+
+    static Network testNetwork = Network.newNetwork();
+
     @Container
-    static final KafkaContainer KAFKA = new KafkaContainer(
-            DockerImageName.parse("confluentinc/cp-kafka:7.3.5")
-    );
+    @SuppressWarnings("resource")
+    protected static final  ConfluentKafkaContainer KAFKA_CONTAINER = 
+        new ConfluentKafkaContainer(KAFKA_IMAGE)
+            .withNetwork(testNetwork)
+            .withNetworkAliases("test-kafka");
+
+    static {
+        KAFKA_CONTAINER.start();
+    }  
 
     @Autowired
     private CommentService commentService;
@@ -56,14 +69,14 @@ public class CommentServiceIT {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private UserServiceClient userServiceClient;
 
     private static final String analyticsCommentTopicName = "analytics_comment_topic";
 
     @DynamicPropertySource
     static void kafkaProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
+        registry.add("spring.kafka.bootstrap-servers", KAFKA_CONTAINER::getBootstrapServers);
         registry.add("spring.kafka.topics.analytics-comment-topic.name", () -> analyticsCommentTopicName);
     }
 
@@ -114,6 +127,16 @@ public class CommentServiceIT {
             assertThat(event.getCommentId()).isEqualTo(savedComment.getId());
             assertThat(event.getPostId()).isEqualTo(postId);
             assertThat(event.getAuthorId()).isEqualTo(authorId);
+        }
+    }
+
+    @AfterAll
+    static void cleanup() {
+        if (KAFKA_CONTAINER != null && KAFKA_CONTAINER.isRunning()) {
+            KAFKA_CONTAINER.stop();
+        }
+        if (testNetwork != null) {
+            testNetwork.close();
         }
     }
 }

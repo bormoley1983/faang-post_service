@@ -45,7 +45,7 @@ public class CommentService {
     private final CommentValidator commentValidator;
     private final ImageProcessor imageProcessor;
 
-    @Value("${services.s3.bucketName}")
+    @Value("${aws.s3.bucket}")
     private String bucketName;
 
     @Value("${comment.image.largeImageMaxSize}")

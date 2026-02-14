@@ -1,107 +1,81 @@
-# Service Template
+# Post Service
 
-Стандартный шаблон проекта на SpringBoot
+Service responsible for creating, moderating, and publishing posts and comments. It integrates with Kafka for event delivery, Redis for caching, PostgreSQL for persistence, and S3-compatible storage for files.
 
-# Использованные технологии
+## Quick start
 
-* [Spring Boot](https://spring.io/projects/spring-boot) – как основной фрэймворк
-* [PostgreSQL](https://www.postgresql.org/) – как основная реляционная база данных
-* [Redis](https://redis.io/) – как кэш и очередь сообщений через pub/sub
-* [testcontainers](https://testcontainers.com/) – для изолированного тестирования с базой данных
-* [Liquibase](https://www.liquibase.org/) – для ведения миграций схемы БД
-* [Gradle](https://gradle.org/) – как система сборки приложения
+Prerequisites:
+- Java 21+ (JDK)
+- Docker (for container runs)
+- PostgreSQL (for persistence)
+- Redis (for caching)
+- Kafka (for event publishing)
+- [faang-infra services](https://github.com/bormoley1983/faang-infra) running locally or accessible
 
-# База данных
-
-* База поднимается в отдельном сервисе [infra](../infra)
-* Redis поднимается в единственном инстансе тоже в [infra](../infra)
-* Liquibase сам накатывает нужные миграции на голый PostgreSql при старте приложения
-* В тестах используется [testcontainers](https://testcontainers.com/), в котором тоже запускается отдельный инстанс
-  postgres
-* В коде продемонстрирована работа как с JdbcTemplate, так и с JPA (Hibernate)
-
-# Как начать разработку начиная с шаблона?
-
-1. Сначала нужно склонировать этот репозиторий
-
-```shell
-git clone https://github.com/FAANG-School/ServiceTemplate
+Run locally:
+```sh
+./gradlew bootRun
 ```
 
-2. Далее удаляем служебную директорию для git
-
-```shell
-# Переходим в корневую директорию проекта
-cd ServiceTemplate
-rm -rf .git
+Run tests:
+```sh
+./gradlew test --info
 ```
 
-3. Далее нужно создать совершенно пустой репозиторий в github/gitlab
-
-4. Создаём новый репозиторий локально и коммитим изменения
-
-```shell
-git init
-git remote add origin <link_to_repo>
-git add .
-git commit -m "<msg>"
+Build and run in Docker:
+```sh
+./gradlew build
+docker build -t post-service .
+docker run -p 8081:8081 post-service
 ```
 
-Готово, можно начинать работу!
+## Configuration
 
-# Как запустить локально?
+Main config: [src/main/resources/application.yaml](src/main/resources/application.yaml)
 
-Сначала нужно развернуть базу данных из директории [infra](../infra)
+Key default configuration properties:
+- **Server Port**: 8081
+- **PostgreSQL**: localhost:5432
+- **Redis**: localhost:6379
+- **Kafka Bootstrap Servers**: localhost:9092
+- **S3 Endpoint**: http://127.0.0.1:9000
+- **Moderation API**: https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze
+- **Spell Checker API**: https://speller.yandex.net/services/spellservice.json
 
-Далее собрать gradle проект
+## External Integrations
 
-```shell
-# Нужно запустить из корневой директории, где лежит build.gradle.kts
-gradle build
-```
+Kafka topics:
+- analytics_comment_topic
+- notification_comment_topic
+- analytics-like-events
+- notification_like_topic
+- user_ban_topic
+- publish_post_topic
+- public_post_view_topic
 
-Запустить jar'ник
+Storage:
+- S3-compatible storage configuration: [src/main/resources/application.yaml](src/main/resources/application.yaml)
 
-```shell
-java -jar build/libs/ServiceTemplate-1.0.jar
-```
+Services:
+- User Service: host/port in [src/main/resources/application.yaml](src/main/resources/application.yaml)
+- Project Service: host/port in [src/main/resources/application.yaml](src/main/resources/application.yaml)
+- Payment Service: host/port in [src/main/resources/application.yaml](src/main/resources/application.yaml)
 
-Но легче всё это делать через IDE
+## Architecture
 
-# Код
+Controllers:
+- [src/main/java/faang/school/postservice/controller](src/main/java/faang/school/postservice/controller)
 
-RESTful приложения калькулятор с единственным endpoint'ом, который принимает 2 числа и выдает результаты их сложения,
-вычитаяни, умножения и деления
+Services:
+- [src/main/java/faang/school/postservice/service](src/main/java/faang/school/postservice/service)
 
-* Обычная трёхслойная
-  архитектура – [Controller](src/main/java/faang/school/postservice/controller), [Service](src/main/java/faang/school/postservice/service), [Repository](src/main/java/faang/school/postservice/repository)
-* Слой Repository реализован и на jdbcTemplate, и на JPA (Hibernate)
-* Написан [GlobalExceptionHandler](src/main/java/faang/school/postservice/controller/GlobalExceptionHandler.java)
-  который умеет возвращать ошибки в формате `{"code":"CODE", "message": "message"}`
-* Используется TTL кэширование вычислений
-  в [CalculationTtlCacheService](src/main/java/faang/school/postservice/service/cache/CalculationTtlCacheService.java)
-* Реализован простой Messaging через [Redis pub/sub](https://redis.io/docs/manual/pubsub/)
-  * [Конфигурация](src/main/java/faang/school/postservice/config/RedisConfig.java) –
-    сетапится [RedisTemplate](https://docs.spring.io/spring-data/redis/docs/current/api/org/springframework/data/redis/core/RedisTemplate.html) –
-    класс, для удобной работы с Redis силами Spring
-  * [Отправитель](src/main/java/faang/school/postservice/service/messaging/RedisCalculationPublisher.java) – генерит
-    рандомные запросы и отправляет в очередь
-  * [Получатель](src/main/java/faang/school/postservice/service/messaging/RedisCalculationSubscriber.java) –
-    получает запросы и отправляет задачи асинхронно выполняться
-    в [воркер](src/main/java/faang/school/postservice/service/worker/CalculationWorker.java)
+Repositories:
+- [src/main/java/faang/school/postservice/repository](src/main/java/faang/school/postservice/repository)
 
-# Тесты
+Messaging:
+- Kafka publishers in [src/main/java/faang/school/postservice/publisher](src/main/java/faang/school/postservice/publisher)
 
-Написаны только для единственного REST endpoint'а
-* SpringBootTest
-* MockMvc
-* Testcontainers
-* AssertJ
-* JUnit5
-* Parameterized tests
+Scheduling:
+- Jobs under [src/main/java/faang/school/postservice/scheduler](src/main/java/faang/school/postservice/scheduler)
 
-# TODO
-
-* Dockerfile, который подключается к сети запущенной postgres в docker-compose
-* Redis connectivity
-* ...
+**Note:** Base code structure and architecture patterns are based on [FAANG School](https://github.com/faang-school) educational project.

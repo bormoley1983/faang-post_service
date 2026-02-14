@@ -1,4 +1,4 @@
-FROM openjdk:17-jdk-slim-buster
+FROM eclipse-temurin:25-jdk-alpine
 WORKDIR /app
 
 COPY /build/libs/service.jar build/

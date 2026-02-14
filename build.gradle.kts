@@ -1,27 +1,29 @@
 plugins {
     java
-    id("org.springframework.boot") version "3.0.6"
-    id("io.spring.dependency-management") version "1.1.0"
+    id("org.springframework.boot") version "4.0.2"
+    id("io.spring.dependency-management") version "1.1.7"
 }
 
 group = "faang.school"
 version = "1.0"
-java.sourceCompatibility = JavaVersion.VERSION_17
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
 
 repositories {
     mavenCentral()
 }
 
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.1")
+        mavenBom("org.testcontainers:testcontainers-bom:2.0.3")
+    }
+}
+
 dependencies {
-    /**
-     * AWS S3
-     */
-    implementation(platform("software.amazon.awssdk:bom:2.21.30"))
-    implementation("software.amazon.awssdk:s3")
-    /**
-     * Spring Swagger
-     */
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.0.2")
     /**
      * Spring boot starters
      */
@@ -30,73 +32,85 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.kafka:spring-kafka")
-    implementation("org.springframework.cloud:spring-cloud-starter-openfeign:4.0.2")
-    implementation ("org.springframework.cloud:spring-cloud-starter-openfeign")
-    implementation ("org.springframework.retry:spring-retry:2.0.11")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+
+    implementation("org.springframework.kafka:spring-kafka")
+    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("org.springframework.retry:spring-retry")
+
+    /**
+     * Spring Swagger
+     */
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
 
     /**
      * Database
      */
     implementation("org.liquibase:liquibase-core")
-    implementation("redis.clients:jedis:4.3.2")
+    implementation("redis.clients:jedis")
     runtimeOnly("org.postgresql:postgresql")
 
     /**
-     * Amazon s3
+     * Amazon S3
      */
-    implementation("software.amazon.awssdk:s3:2.20.86")
-    implementation("software.amazon.awssdk:url-connection-client:2.20.86")
-
+    implementation(platform("software.amazon.awssdk:bom:2.41.27"))
+    implementation("software.amazon.awssdk:s3")     
+    implementation("software.amazon.awssdk:url-connection-client")
 
     /**
      * Utils & Logging
      */
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.14.2")
-    implementation("org.slf4j:slf4j-api:2.0.5")
-    implementation("ch.qos.logback:logback-classic:1.4.6")
-    implementation("org.projectlombok:lombok:1.18.26")
-    annotationProcessor("org.projectlombok:lombok:1.18.26")
-    implementation("org.mapstruct:mapstruct:1.5.3.Final")
-    annotationProcessor("org.mapstruct:mapstruct-processor:1.5.3.Final")
+    implementation("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
 
-    /**
-     * Test containers
-     */
-    implementation(platform("org.testcontainers:testcontainers-bom:1.17.6"))
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
-    testImplementation("org.testcontainers:kafka")
-    testImplementation("com.redis.testcontainers:testcontainers-redis-junit-jupiter:1.4.6")
+    implementation("org.mapstruct:mapstruct:1.6.3")
+    annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
+
+    // implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
 
     /**
      * Tests
      */
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.2")
-    testImplementation("org.assertj:assertj-core:3.24.2")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("org.springframework.boot:spring-boot-test-autoconfigure")
     testImplementation("org.springframework.kafka:spring-kafka-test")
-    testImplementation ("uk.org.lidalia:slf4j-test:1.2.0")
-}
+    testImplementation("org.mockito:mockito-core")
+    testImplementation("org.springframework:spring-test")
+    
+    testCompileOnly("org.projectlombok:lombok")
+    testAnnotationProcessor("org.projectlombok:lombok")
 
-tasks.test {
-    useJUnitPlatform()
+    testImplementation("org.testcontainers:junit-jupiter:1.21.4")
+    testImplementation("org.testcontainers:postgresql:1.21.4")
+    testImplementation("org.testcontainers:kafka:1.21.4")
+    testImplementation("com.redis:testcontainers-redis:2.2.4")
+
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.11.4")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
-}
 
-val test by tasks.getting(Test::class) { testLogging.showStandardStreams = true }
-
-tasks.bootJar {
-    archiveFileName.set("service.jar")
+    jvmArgs(
+        "-XX:+EnableDynamicAgentLoading",
+        "--enable-native-access=ALL-UNNAMED"
+    )
 }
 
 tasks.test {
     useJUnitPlatform {
         excludeTags("integration")
     }
+    
+    testLogging {
+        events("passed", "skipped", "failed", "standardOut", "standardError")
+        showStandardStreams = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }  
+}
+
+tasks.bootJar {
+    archiveFileName.set("service.jar")
 }

@@ -53,6 +53,7 @@ class CommentServiceModerationTest {
 
         assertThat(moderatedCount).isEqualTo(2);
 
+        @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Comment>> captor = ArgumentCaptor.forClass(List.class);
         verify(commentRepository, times(1)).saveAll(captor.capture());
         List<Comment> updatedComments = captor.getValue();
@@ -95,6 +96,7 @@ class CommentServiceModerationTest {
 
         assertThat(moderatedCount).isEqualTo(1);
 
+        @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Comment>> captor = ArgumentCaptor.forClass(List.class);
         verify(commentRepository, times(1)).saveAll(captor.capture());
         List<Comment> updatedComments = captor.getValue();
