@@ -38,8 +38,6 @@ spring:
     topics:
       analytics-comment-topic:
         name: ${KAFKA_ANALYTICS_COMMENT_TOPIC:analytics_comment_topic}
-      analytics-like-topic:
-        name: ${KAFKA_ANALYTICS_LIKE_EVENTS:analytics-like-events}
       notification-like-topic:
         name: ${KAFKA_ANALYTICS_LIKE_TOPIC:notification_like_topic}
       notification-comment-topic:
@@ -162,6 +160,10 @@ commenter-banner:
   comments-count-for-ban: 5
 
 app:
+  kafka:
+    topics:
+      analytics:
+        like: ${KAFKA_ANALYTICS_LIKE_TOPIC:analytics_like_topic}
   thread-pool:
     core-size: 5
     max-size: 10

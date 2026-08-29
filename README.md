@@ -47,7 +47,7 @@ Key default configuration properties:
 Kafka topics:
 - analytics_comment_topic
 - notification_comment_topic
-- analytics-like-events
+- analytics_like_topic
 - notification_like_topic
 - user_ban_topic
 - publish_post_topic

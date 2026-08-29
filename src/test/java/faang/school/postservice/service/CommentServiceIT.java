@@ -127,6 +127,9 @@ public class CommentServiceIT {
             assertThat(event.getCommentId()).isEqualTo(savedComment.getId());
             assertThat(event.getPostId()).isEqualTo(postId);
             assertThat(event.getAuthorId()).isEqualTo(authorId);
+            assertThat(event.getSchemaVersion()).isEqualTo(1);
+            assertThat(event.getEventId()).isNotBlank();
+            assertThat(event.getTimestamp()).isNotNull();
         }
     }
 

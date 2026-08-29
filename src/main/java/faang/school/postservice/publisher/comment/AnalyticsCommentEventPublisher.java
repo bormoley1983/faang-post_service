@@ -13,6 +13,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.util.UUID;
+
 
 @Slf4j
 @RequiredArgsConstructor
@@ -28,12 +31,13 @@ public class AnalyticsCommentEventPublisher implements EventPublisher {
     @Override
     public void publishEvent(Object dto) {
         AnalyticsCommentEvent event = commentMapper.toAnalyticsCommentEvent((Comment) dto);
+        event.setEventId(UUID.randomUUID().toString());
+        event.setTimestamp(Instant.now());
         try {
             String jsonEvents = objectMapper.writeValueAsString(event);
             kafkaTemplate.send(analyticsCommentTopicName, jsonEvents);
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize AnalyticsCommentEvent to JSON. Event data: {}. Error message: {}",
-                    event, e.getMessage(), e);
+            log.error("Failed to serialize analytics comment event: eventId={}", event.getEventId(), e);
         }
     }
 }
