@@ -2,9 +2,10 @@ package faang.school.postservice.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import faang.school.postservice.client.UserServiceClient;
+import faang.school.postservice.dto.user.UserDto;
 import faang.school.postservice.model.Post;
 import faang.school.postservice.model.event.PostCreatedEvent;
-import faang.school.postservice.repository.PostRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,7 +14,6 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
@@ -34,7 +34,7 @@ public class KafkaPostProducerTest {
     private KafkaTemplate<String, String> kafkaTemplate;
 
     @Mock
-    PostRepository postRepository;
+        private UserServiceClient userServiceClient;
 
     @Mock
     private ObjectMapper objectMapper;
@@ -59,11 +59,12 @@ public class KafkaPostProducerTest {
         post.setId(postId);
         post.setAuthorId(authorId);
 
-        List<Long> subscriberIds = List.of(3L, 4L, 5L);
-        when(postRepository.findAuthorSubscribersCount(eq(authorId))).thenReturn(3L);
-        when(postRepository.findAuthorSubscribers(eq(authorId), any(Pageable.class)))
-                .thenReturn(subscriberIds.subList(0, 2))
-                .thenReturn(subscriberIds.subList(2, 3));
+        List<UserDto> subscribers = List.of(
+                new UserDto(3L, "u3", "u3@mail.com"),
+                new UserDto(4L, "u4", "u4@mail.com"),
+                new UserDto(5L, "u5", "u5@mail.com")
+        );
+        when(userServiceClient.getFollowers(eq(authorId))).thenReturn(subscribers);
         when(objectMapper.writeValueAsString(any(PostCreatedEvent.class)))
                 .thenReturn("{\"json\":\"content\"}");
 
@@ -71,8 +72,8 @@ public class KafkaPostProducerTest {
 
         verify(kafkaTemplate, times(2)).send(eq("publish_post_topic"), messageCaptor.capture());
         verify(objectMapper, times(2)).writeValueAsString(any(PostCreatedEvent.class));
-        verify(postRepository, times(1)).findAuthorSubscribersCount(eq(authorId));
-        verify(postRepository, times(2)).findAuthorSubscribers(eq(authorId), any(Pageable.class));    }
+                verify(userServiceClient, times(1)).getFollowers(eq(authorId));
+        }
 
     @Test
     void shouldHandleJsonProcessingException() throws JsonProcessingException {
@@ -81,11 +82,12 @@ public class KafkaPostProducerTest {
         post.setId(1L);
         post.setAuthorId(authorId);
 
-        List<Long> subscriberIds = List.of(3L, 4L, 5L);
-        when(postRepository.findAuthorSubscribersCount(eq(authorId))).thenReturn(3L);
-        when(postRepository.findAuthorSubscribers(eq(authorId), any(Pageable.class)))
-                .thenReturn(subscriberIds.subList(0, 2))
-                .thenReturn(subscriberIds.subList(2, 3));
+        List<UserDto> subscribers = List.of(
+                new UserDto(3L, "u3", "u3@mail.com"),
+                new UserDto(4L, "u4", "u4@mail.com"),
+                new UserDto(5L, "u5", "u5@mail.com")
+        );
+        when(userServiceClient.getFollowers(eq(authorId))).thenReturn(subscribers);
         when(objectMapper.writeValueAsString(any(PostCreatedEvent.class)))
                 .thenThrow(new JsonProcessingException("Error processing JSON") {});
 

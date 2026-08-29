@@ -39,7 +39,7 @@ spring:
       analytics-comment-topic:
         name: ${KAFKA_ANALYTICS_COMMENT_TOPIC:analytics_comment_topic}
       notification-like-topic:
-        name: ${KAFKA_ANALYTICS_LIKE_TOPIC:notification_like_topic}
+        name: ${KAFKA_NOTIFICATION_LIKE_TOPIC:notification_like_topic}
       notification-comment-topic:
         name: ${KAFKA_NOTIFICATION_COMMENT_TOPIC:notification_comment_topic}
       user-ban-topic:

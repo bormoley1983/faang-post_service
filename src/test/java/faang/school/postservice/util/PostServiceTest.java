@@ -31,9 +31,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,9 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -364,29 +360,17 @@ public class PostServiceTest {
     }
 
     @Test
-    void publishScheduledPostsTest() throws Exception {
+    void publishScheduledPostsTest() {
         when(postRepository.findReadyToPublish()).thenReturn(postsToPublish);
-        ExecutorService mockExecutor = mock(ExecutorService.class);
-
-        ReflectionTestUtils.setField(postService, "executorService", mockExecutor);
-
-        doAnswer(invocation -> {
-            List<Callable<Void>> tasks = invocation.getArgument(0);
-            tasks.forEach(task -> {
-                try {
-                    task.call();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            return null;
-        }).when(mockExecutor).invokeAll(anyList());
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         postService.publishScheduledPosts();
 
         verify(postRepository).findReadyToPublish();
-        verify(mockExecutor).invokeAll(anyList());
-        verify(postRepository).saveAll(postsToPublish);
+        verify(postRepository, times(postsToPublish.size())).save(any(Post.class));
+        verify(kafkaPostProducer, times(postsToPublish.size())).publishPostCreationEvent(any(Post.class));
+        verify(postCacheService, times(postsToPublish.size())).cachePost(any(Post.class));
+        verify(userCashService, times(postsToPublish.size())).cacheUser(anyLong());
     }
 
     @Test

@@ -57,7 +57,7 @@ public class Post {
     @Column(name = "verified", nullable = false)
     private boolean verified;
 
-    @Column(name = "verifiedDate")
+    @Column(name = "verified_date")
     private LocalDateTime verifiedDate;
 
     @OneToOne(mappedBy = "post", cascade = CascadeType.ALL)

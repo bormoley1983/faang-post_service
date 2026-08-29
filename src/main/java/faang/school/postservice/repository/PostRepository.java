@@ -5,7 +5,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
-import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -32,23 +31,13 @@ public interface PostRepository extends CrudRepository<Post, Long> {
     @Query("SELECT p FROM Post p JOIN p.resources r WHERE r.key IN :resourceKeys")
     List<Post> findPostsByResourceKeys(List<String> resourceKeys);
 
-    @Query(value = "SELECT p.author_id " +
+        @Query(value = "SELECT p.author_id " +
             "FROM post p " +
-            "JOIN users u ON p.author_id = u.id " +
-            "WHERE p.verified = false and verified_date is not null and u.banned = false " +
+            "WHERE p.verified = false and verified_date is not null " +
             "GROUP BY p.author_id " +
             "HAVING COUNT(p.author_id) > :maxPostsToBan",
             nativeQuery = true)
     List<Long> findUserIdsToBanWithUnverifiedPosts(int maxPostsToBan);
 
     Page<Post> findByPublishedFalse(Pageable pageable);
-
-    @Query(value = "SELECT s.follower_id FROM subscription s WHERE s.followee_id = :followeeId", nativeQuery = true)
-    List<Long> findAllAuthorSubscribers(@Param("followeeId") Long authorId);
-
-    @Query(value = "SELECT s.follower_id FROM subscription s WHERE s.followee_id = :followeeId", nativeQuery = true)
-    List<Long> findAuthorSubscribers(@Param("followeeId") Long authorId, Pageable pageable);
-
-    @Query(value = "SELECT Count(s) FROM subscription s WHERE s.followee_id = :followeeId", nativeQuery = true)
-    Long findAuthorSubscribersCount(@Param("followeeId") Long authorId);
 }

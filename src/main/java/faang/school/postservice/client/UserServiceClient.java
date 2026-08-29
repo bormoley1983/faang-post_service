@@ -26,4 +26,10 @@ public interface UserServiceClient {
             @RequestParam("ids") List<Long> ids, // Передача списка
             Pageable pageable
     );
+
+    @PostMapping("/subscriptions/followers/{followeeId}")
+    List<UserDto> getFollowers(@PathVariable("followeeId") Long followeeId);
+
+    @GetMapping("/subscriptions/followers/count/{followeeId}")
+    Integer getFollowersCount(@PathVariable("followeeId") Long followeeId);
 }

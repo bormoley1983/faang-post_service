@@ -2,16 +2,15 @@ package faang.school.postservice.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import faang.school.postservice.client.UserServiceClient;
+import faang.school.postservice.dto.user.UserDto;
 import faang.school.postservice.model.Post;
 import faang.school.postservice.model.event.PostCreatedEvent;
-import faang.school.postservice.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.ListUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +22,7 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 @Setter
 public class KafkaPostProducer {
-    private final PostRepository postRepository;
+    private final UserServiceClient userServiceClient;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
@@ -34,9 +33,13 @@ public class KafkaPostProducer {
     private int batchSize;
 
     public void publishPostCreationEvent(Post post) {
-        int batchesCount = countSubscribersPages(post.getAuthorId());
-        List<Long> allSubscribers = fetchSubscriberIds(post.getAuthorId(), batchesCount);
+        List<Long> allSubscribers = fetchSubscriberIds(post.getAuthorId());
+        if (allSubscribers.isEmpty()) {
+            return;
+        }
+
         List<List<Long>> batches = partitionSubscriberIds(allSubscribers);
+        int batchesCount = batches.size();
 
         IntStream.range(0, batchesCount)
                 .forEach(currentBatch -> {
@@ -51,21 +54,10 @@ public class KafkaPostProducer {
                 });
     }
 
-    private int countSubscribersPages(Long authorId) {
-        Long subscribersCount = postRepository.findAuthorSubscribersCount(authorId);
-        return (int) Math.ceil((double) subscribersCount / batchSize);
-    }
-
-    private List<Long> fetchSubscriberIds(Long authorId, int pagesCount) {
-        List<Long> result = IntStream.range(0, pagesCount)
-                .mapToObj( page -> {
-                    Pageable pageable = PageRequest.of(page, batchSize);
-                    return postRepository.findAuthorSubscribers(authorId, pageable);
-                })
-                .flatMap(List::stream)
+    private List<Long> fetchSubscriberIds(Long authorId) {
+        return userServiceClient.getFollowers(authorId).stream()
+                .map(UserDto::id)
                 .toList();
-
-        return result;
     }
 
     private List<List<Long>> partitionSubscriberIds(List<Long> allSubscribers) {

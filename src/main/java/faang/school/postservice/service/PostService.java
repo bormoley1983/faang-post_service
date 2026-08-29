@@ -20,9 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -31,7 +29,6 @@ import java.util.stream.Collectors;
 public class PostService {
     private final PostRepository postRepository;
     private final InternalServices internalServices;
-    private final ExecutorService executorService;
     private final AsyncModerationService asyncModerationService;
     private final SpellCheckerService spellCheckerService;
     private final KafkaPostProducer kafkaPostProducer;
@@ -59,14 +56,17 @@ public class PostService {
         if (post.isPublished()) {
             throw new DataValidationException("Post is already published. Id:" + postId);
         }
+
+        return publishPostInternal(post);
+    }
+
+    private Post publishPostInternal(Post post) {
         post.setPublished(true);
         post.setPublishedAt(LocalDateTime.now());
         Post result = postRepository.save(post);
         kafkaPostProducer.publishPostCreationEvent(result);
         postCacheService.cachePost(result);
-
         userCashService.cacheUser(result.getAuthorId());
-
         return result;
     }
 
@@ -162,30 +162,7 @@ public class PostService {
     @Transactional
     public void publishScheduledPosts() {
         List<Post> postsToPublish = postRepository.findReadyToPublish();
-
-        List<List<Post>> postsToPublishPartitioned = ListUtils.partition(postsToPublish, 1000);
-        try {
-            List<Callable<Void>> tasks = postsToPublishPartitioned.stream()
-                    .map(this::publishChunkOfPosts)
-                    .toList();
-
-            executorService.invokeAll(tasks);
-        } catch (Exception e) {
-            log.error("Publishing posts chunk failed!", e);
-        }
-        CompletableFuture.completedFuture(null);
-    }
-
-    private Callable<Void> publishChunkOfPosts(List<Post> postsToPublish) {
-        return () -> {
-            postsToPublish.forEach(post -> {
-                post.setPublished(true);
-                post.setPublishedAt(LocalDateTime.now());
-            });
-
-            postRepository.saveAll(postsToPublish);
-            return null;
-        };
+        postsToPublish.forEach(this::publishPostInternal);
     }
 
     @Transactional
@@ -219,7 +196,7 @@ public class PostService {
                 if (correctedContents.size() != contents.size()) {
                     log.error("Size mismatch: correctedContents size = {}, contents size = {}",
                             correctedContents.size(), contents.size());
-                    continue;
+                    break;
                 }
 
                 for (int i = 0; i < posts.size(); i++) {
@@ -230,7 +207,7 @@ public class PostService {
 
                 postRepository.saveAll(posts);
             } catch (Exception ex) {
-                log.error("Failed to process batch: {}", ex.getMessage());
+                log.error("Failed to process batch", ex);
             }
 
             pageable = postsPage.nextPageable();
