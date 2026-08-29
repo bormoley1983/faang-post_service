@@ -5,7 +5,7 @@ Service responsible for creating, moderating, and publishing posts and comments.
 ## Quick start
 
 Prerequisites:
-- Java 21+ (JDK)
+- Java 25+ (JDK)
 - Docker (for container runs)
 - PostgreSQL (for persistence)
 - Redis (for caching)
