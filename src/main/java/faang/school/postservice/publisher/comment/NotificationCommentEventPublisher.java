@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import faang.school.postservice.mapper.CommentMapper;
 import faang.school.postservice.model.Comment;
+import faang.school.postservice.exception.EventSerializationException;
 import faang.school.postservice.model.event.NotificationCommentEvent;
 import faang.school.postservice.publisher.EventPublisher;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,7 @@ public class NotificationCommentEventPublisher implements EventPublisher {
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize NotificationCommentEvent to JSON. Event data: {}. Error message: {}",
                     event, e.getMessage(), e);
-            throw new RuntimeException(e);
+            throw new EventSerializationException("Failed to serialize NotificationCommentEvent", e);
         }
     }
 }

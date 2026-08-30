@@ -2,6 +2,7 @@ package faang.school.postservice.scheduler;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import faang.school.postservice.exception.EventSerializationException;
 import faang.school.postservice.model.event.UserBanEvent;
 import faang.school.postservice.service.CommentService;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +37,7 @@ public class CommenterBanner {
                 String userBanJsonEvent = objectMapper.writeValueAsString(userBanEvent);
                 kafkaTemplate.send(userBanTopicName, userBanJsonEvent);
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                throw new EventSerializationException("Failed to serialize UserBanEvent", e);
             }
         });
     }

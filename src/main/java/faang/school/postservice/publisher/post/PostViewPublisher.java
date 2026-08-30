@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import faang.school.postservice.mapper.PostViewMapper;
 import faang.school.postservice.model.Post;
+import faang.school.postservice.exception.EventSerializationException;
 import faang.school.postservice.model.event.PostViewEvent;
 import faang.school.postservice.publisher.EventPublisher;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +31,9 @@ public class PostViewPublisher implements EventPublisher {
             String jsonEvents = objectMapper.writeValueAsString(event);
             kafkaTemplate.send(postViewTopicName, jsonEvents);
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize NotificationCommentEvent to JSON. Event data: {}. Error message: {}",
+            log.error("Failed to serialize PostViewEvent to JSON. Event data: {}. Error message: {}",
                     event, e.getMessage(), e);
-            throw new RuntimeException(e);
+            throw new EventSerializationException("Failed to serialize PostViewEvent", e);
         }
     }
 

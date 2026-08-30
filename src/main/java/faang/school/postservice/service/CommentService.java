@@ -2,6 +2,7 @@ package faang.school.postservice.service;
 
 import faang.school.postservice.client.UserServiceClient;
 import faang.school.postservice.exception.CommentNotFoundException;
+import faang.school.postservice.exception.EventSerializationException;
 import faang.school.postservice.exception.UserNotFoundException;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Post;
@@ -216,7 +217,7 @@ public class CommentService {
             awsService.uploadFile(bucketName, key, imageBytes);
             return imageBytes.length;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new EventSerializationException("Failed to resize and upload image", e);
         }
     }
 

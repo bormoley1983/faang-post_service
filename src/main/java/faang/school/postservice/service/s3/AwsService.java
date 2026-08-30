@@ -1,5 +1,6 @@
 package faang.school.postservice.service.s3;
 
+import faang.school.postservice.exception.EventSerializationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,8 +41,8 @@ public class AwsService {
             log.info("File {} was downloaded from bucket: ({})", keyName, bucketName);
             return inputStream.readAllBytes();
         } catch (IOException e) {
-            log.error("Error uploading file with key: ({}) to S3", keyName);
-            throw new RuntimeException(e);
+            log.error("Error downloading file with key: ({}) from S3", keyName, e);
+            throw new EventSerializationException("Failed to download file from S3", e);
         }
     }
 
