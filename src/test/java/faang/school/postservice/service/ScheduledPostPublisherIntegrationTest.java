@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import faang.school.postservice.repository.PostCacheRepository;
 import faang.school.postservice.util.BaseContextTest;
 import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+@Tag("integration")
 @ActiveProfiles("test")
 @RequiredArgsConstructor
 @ExtendWith(OutputCaptureExtension.class)

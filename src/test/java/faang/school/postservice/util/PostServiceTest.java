@@ -487,4 +487,77 @@ public class PostServiceTest {
             assert post.getContent().equals(correctedContent);
         }
     }
+
+    @Test
+    void createDraft_whenProjectPostAndValidOwner_succeeds() {
+        // Arrange: project post with valid project and owner
+        Post projPost = new Post();
+        projPost.setProjectId(1L);
+        when(internalServices.projectExists(1L)).thenReturn(true);
+        when(projectServiceClient.getProject(1L)).thenReturn(new faang.school.postservice.dto.project.ProjectDto(1L, "proj", 1L));
+        when(postRepository.save(any(Post.class))).thenReturn(projPost);
+
+        // Act
+        Post result = postService.createDraft(projPost, 1L);
+
+        // Assert
+        assertNotNull(result);
+    }
+
+    @Test
+    void createDraft_whenProjectPostAndWrongOwner_throws() {
+        // Arrange: project post but user is not the project owner
+        Post projPost = new Post();
+        projPost.setProjectId(1L);
+        when(internalServices.projectExists(1L)).thenReturn(true);
+        when(projectServiceClient.getProject(1L)).thenReturn(new faang.school.postservice.dto.project.ProjectDto(1L, "proj", 99L));
+
+        // Act & Assert
+        assertThrows(DataValidationException.class, () -> postService.createDraft(projPost, 1L));
+    }
+
+    @Test
+    void publish_whenPostHasNoOwner_throws() {
+        // Arrange: post with neither authorId nor projectId
+        Post orphanPost = new Post();
+        orphanPost.setId(5L);
+        orphanPost.setPublished(false);
+        when(postRepository.findById(5L)).thenReturn(Optional.of(orphanPost));
+
+        // Act & Assert
+        assertThrows(DataValidationException.class, () -> postService.publish(5L, 1L));
+    }
+
+    @Test
+    void moderatePosts_whenNoUnverifiedPosts_doesNothing() {
+        // Arrange
+        when(postRepository.findByVerifiedDateIsNull()).thenReturn(List.of());
+
+        // Act
+        postService.moderatePosts();
+
+        // Assert
+        verify(asyncModerationService, never()).moderateThreadAsync(anyList());
+    }
+
+    @Test
+    void removeResources_whenOwner_removesMatchingKeys() {
+        // Arrange
+        Post postWithResources = new Post();
+        postWithResources.setId(1L);
+        postWithResources.setAuthorId(1L);
+        Resource r1 = Resource.builder().key("key1").build();
+        Resource r2 = Resource.builder().key("key2").build();
+        postWithResources.getResources().addAll(List.of(r1, r2));
+
+        when(postRepository.findPostsByResourceKeys(List.of("key1"))).thenReturn(List.of(postWithResources));
+        when(postRepository.save(any(Post.class))).thenReturn(postWithResources);
+
+        // Act
+        postService.removeResources(List.of("key1"), 1L);
+
+        // Assert
+        assertEquals(1, postWithResources.getResources().size());
+        assertEquals("key2", postWithResources.getResources().get(0).getKey());
+    }
 }

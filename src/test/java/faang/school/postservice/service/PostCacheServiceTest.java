@@ -78,4 +78,13 @@ public class PostCacheServiceTest {
 
         verify(postCacheRepository).deleteById(postId);
     }
+
+    @Test
+    void cleanupExpiredPosts_delegatesToRepository() {
+        // Act
+        postCacheService.cleanupExpiredPosts();
+
+        // Assert
+        verify(postCacheRepository).removeExpiredPosts();
+    }
 }

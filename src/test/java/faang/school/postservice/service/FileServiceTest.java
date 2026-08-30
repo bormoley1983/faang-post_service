@@ -131,4 +131,73 @@ public class FileServiceTest {
         assertArrayEquals(fileBytes, result);
         verify(s3Service, times(1)).getObjectBytes(anyString(), anyString());
     }
+
+    @Test
+    void uploadFiles_whenFileTooLarge_throwsAndCleansUp() {
+        // Arrange: file larger than 5MB — size check throws before contentType is read
+        MultipartFile largeFile = mock(MultipartFile.class);
+        when(largeFile.getSize()).thenReturn(6L * 1024 * 1024);
+
+        // Act & Assert
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                fileService.uploadFiles(1L, List.of(largeFile), 2L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("File size");
+    }
+
+    @Test
+    void uploadFiles_whenUnsupportedType_throws() {
+        // Arrange
+        MultipartFile pdfFile = mock(MultipartFile.class);
+        when(pdfFile.getSize()).thenReturn(1024L);
+        when(pdfFile.getContentType()).thenReturn("application/pdf");
+
+        // Act & Assert
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                fileService.uploadFiles(1L, List.of(pdfFile), 2L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported file type");
+    }
+
+    @Test
+    void uploadFiles_whenContentTypeNull_throws() {
+        // Arrange
+        MultipartFile noTypeFile = mock(MultipartFile.class);
+        when(noTypeFile.getSize()).thenReturn(1024L);
+        when(noTypeFile.getContentType()).thenReturn(null);
+
+        // Act & Assert
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                fileService.uploadFiles(1L, List.of(noTypeFile), 2L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported file type");
+    }
+
+    @Test
+    void uploadFiles_whenSecondFileFails_cleansUpFirstUploaded() throws IOException {
+        // Arrange: first file succeeds, second has unsupported type
+        MultipartFile file1 = mock(MultipartFile.class);
+        when(file1.getSize()).thenReturn(1024L);
+        when(file1.getContentType()).thenReturn("video/mp4");
+        when(file1.getOriginalFilename()).thenReturn("a.mp4");
+        when(file1.getBytes()).thenReturn(new byte[]{1});
+
+        MultipartFile file2 = mock(MultipartFile.class);
+        when(file2.getSize()).thenReturn(1024L);
+        when(file2.getContentType()).thenReturn("application/pdf");
+
+        when(awsS3ApiConfig.getBucket()).thenReturn("test-bucket");
+        when(s3Service.uploadFileAsync(eq("test-bucket"), anyString(), anyMap(), any(byte[].class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(s3Service.deleteFileAsync(anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        // Act & Assert
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                fileService.uploadFiles(1L, List.of(file1, file2), 2L))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        // Verify cleanup was attempted for the first file's key
+        verify(s3Service).deleteFileAsync(eq("test-bucket"), anyString());
+    }
 }
