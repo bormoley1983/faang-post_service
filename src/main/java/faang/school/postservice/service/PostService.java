@@ -1,8 +1,11 @@
 package faang.school.postservice.service;
 
-import faang.school.postservice.annotations.PublishPostViewEvent;
+import faang.school.postservice.client.ProjectServiceClient;
+import faang.school.postservice.dto.project.ProjectDto;
 import faang.school.postservice.exception.DataValidationException;
 import faang.school.postservice.model.Post;
+import faang.school.postservice.model.Resource;
+import faang.school.postservice.publisher.post.PostViewPublisher;
 import faang.school.postservice.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.InvalidParameterException;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -34,25 +36,37 @@ public class PostService {
     private final KafkaPostProducer kafkaPostProducer;
     private final PostCacheService postCacheService;
     private final UserCashService userCashService;
+    private final PostViewPublisher postViewPublisher;
+    private final ProjectServiceClient projectServiceClient;
 
     @Value("${moderation.threadSize}")
     private int threadSize;
 
+    @Value("${post.query.max-size:100}")
+    private int maxQuerySize;
+
     @Transactional
-    public Post createDraft(Post post) {
-        if (post.getAuthorId() != null && !internalServices.userExists(post.getAuthorId())) {
-            throw new InvalidParameterException("Post author does not exist! id:" + post.getAuthorId());
-        }
-        if (post.getProjectId() != null && !internalServices.projectExists(post.getProjectId())) {
-            throw new InvalidParameterException("Post project does not exist! id:" + post.getProjectId());
+    public Post createDraft(Post post, Long currentUserId) {
+        if (post.getProjectId() == null) {
+            post.setAuthorId(currentUserId);
+            if (!internalServices.userExists(currentUserId)) {
+                throw new InvalidParameterException("Post author does not exist! id:" + currentUserId);
+            }
+        } else {
+            post.setAuthorId(null);
+            if (!internalServices.projectExists(post.getProjectId())) {
+                throw new InvalidParameterException("Post project does not exist! id:" + post.getProjectId());
+            }
+            validateOwner(post, currentUserId);
         }
         return postRepository.save(post);
     }
 
     @Transactional
-    public Post publish(Long postId) {
+    public Post publish(Long postId, Long currentUserId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new DataValidationException("Specified post not found. Id:" + postId));
+        validateOwner(post, currentUserId);
         if (post.isPublished()) {
             throw new DataValidationException("Post is already published. Id:" + postId);
         }
@@ -64,70 +78,79 @@ public class PostService {
         post.setPublished(true);
         post.setPublishedAt(LocalDateTime.now());
         Post result = postRepository.save(post);
-        kafkaPostProducer.publishPostCreationEvent(result);
-        postCacheService.cachePost(result);
-        userCashService.cacheUser(result.getAuthorId());
+
+        TransactionHooks.runAfterCommit(() -> kafkaPostProducer.publishPostCreationEvent(result));
+        TransactionHooks.runAfterCommit(() -> postCacheService.cachePost(result));
+        TransactionHooks.runAfterCommit(() -> userCashService.cacheUser(result.getAuthorId()));
+
         return result;
     }
 
     @Transactional
-    public Post update(Post post) {
+    public Post update(Post post, Long currentUserId) {
         Post originalPost = postRepository.findById(post.getId())
                 .orElseThrow(() -> new DataValidationException("You are trying to update not existing post. Id:"
                         + post.getId()));
-        if (!Objects.equals(originalPost.getAuthorId(), post.getAuthorId())
-                || !Objects.equals(originalPost.getProjectId(), post.getProjectId())) {
-            throw new DataValidationException("Post author cannot be changed!");
-        }
 
-        return postRepository.save(post);
+        validateOwner(originalPost, currentUserId);
+
+        originalPost.setContent(post.getContent());
+        originalPost.setScheduledAt(post.getScheduledAt());
+
+        Post updatedPost = postRepository.save(originalPost);
+        TransactionHooks.runAfterCommit(() -> postCacheService.cachePost(updatedPost));
+        return updatedPost;
     }
 
     @Transactional
-    public void delete(Long postId) {
+    public void delete(Long postId, Long currentUserId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new DataValidationException("Specified post not found. Id:" + postId));
+
+        validateOwner(post, currentUserId);
+
         post.setDeleted(true);
         postRepository.save(post);
-        postCacheService.removePostFromCache(postId);
+        TransactionHooks.runAfterCommit(() -> postCacheService.removePostFromCache(postId));
     }
 
-    @PublishPostViewEvent
     @Transactional(readOnly = true)
     public Post get(Long postId) {
         Optional<Post> cachedPost = postCacheService.getCachedPost(postId);
 
-        return cachedPost.orElseGet(() -> postRepository.findById(postId)
-                .orElseThrow(() -> new DataValidationException("Specified post not found. Id:" + postId)));
+        Post post = cachedPost.orElseGet(() -> {
+            Post storedPost = postRepository.findById(postId)
+                    .orElseThrow(() -> new DataValidationException("Specified post not found. Id:" + postId));
+            postCacheService.cachePost(storedPost);
+            return storedPost;
+        });
+        TransactionHooks.runAfterCommit(() -> postViewPublisher.publishEvent(post));
+        return post;
 
     }
 
     public List<Post> getDraftsByAuthorId(Long userId) {
-        return postRepository.findByAuthorId(userId).stream()
-                .filter(post -> !post.isDeleted() && !post.isPublished())
-                .sorted(Comparator.comparing(Post::getCreatedAt).reversed())
-                .toList();
+        Pageable pageable = PageRequest.of(0, maxQuerySize);
+        return postRepository.findByAuthorIdAndDeletedFalseAndPublishedFalseOrderByCreatedAtDesc(userId, pageable)
+                .getContent();
     }
 
     public List<Post> getDraftsByProjectId(Long projectId) {
-        return postRepository.findByProjectId(projectId).stream()
-                .filter(post -> !post.isDeleted() && !post.isPublished())
-                .sorted(Comparator.comparing(Post::getCreatedAt).reversed())
-                .toList();
+        Pageable pageable = PageRequest.of(0, maxQuerySize);
+        return postRepository.findByProjectIdAndDeletedFalseAndPublishedFalseOrderByCreatedAtDesc(projectId, pageable)
+                .getContent();
     }
 
     public List<Post> getPostsByAuthorId(Long userId) {
-        return postRepository.findByAuthorId(userId).stream()
-                .filter(post -> !post.isDeleted() && post.isPublished())
-                .sorted(Comparator.comparing(Post::getPublishedAt).reversed())
-                .toList();
+        Pageable pageable = PageRequest.of(0, maxQuerySize);
+        return postRepository.findByAuthorIdAndDeletedFalseAndPublishedTrueOrderByPublishedAtDesc(userId, pageable)
+                .getContent();
     }
 
     public List<Post> getPostsByProjectId(Long projectId) {
-        return postRepository.findByProjectId(projectId).stream()
-                .filter(post -> !post.isDeleted() && post.isPublished())
-                .sorted(Comparator.comparing(Post::getPublishedAt).reversed())
-                .toList();
+        Pageable pageable = PageRequest.of(0, maxQuerySize);
+        return postRepository.findByProjectIdAndDeletedFalseAndPublishedTrueOrderByPublishedAtDesc(projectId, pageable)
+                .getContent();
     }
 
     @Transactional(readOnly = true)
@@ -153,6 +176,29 @@ public class PostService {
 
     public List<Post> findPostsByResourceKeys(List<String> resourceKeys) {
         return postRepository.findPostsByResourceKeys(resourceKeys);
+    }
+
+    @Transactional
+    public Post addResources(Long postId, List<Resource> resources, Long currentUserId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new DataValidationException("Specified post not found. Id:" + postId));
+        validateOwner(post, currentUserId);
+        resources.forEach(resource -> resource.setPost(post));
+        post.getResources().addAll(resources);
+        Post savedPost = postRepository.save(post);
+        TransactionHooks.runAfterCommit(() -> postCacheService.cachePost(savedPost));
+        return savedPost;
+    }
+
+    @Transactional
+    public void removeResources(List<String> resourceKeys, Long currentUserId) {
+        List<Post> posts = postRepository.findPostsByResourceKeys(resourceKeys);
+        posts.forEach(post -> {
+            validateOwner(post, currentUserId);
+            post.getResources().removeIf(resource -> resourceKeys.contains(resource.getKey()));
+            postRepository.save(post);
+            TransactionHooks.runAfterCommit(() -> postCacheService.cachePost(post));
+        });
     }
 
     public List<Long> getUsersForBanWithUnverifiedPosts(int maxUnverifiedPosts) {
@@ -212,5 +258,24 @@ public class PostService {
 
             pageable = postsPage.nextPageable();
         } while (pageable.isPaged());
+    }
+
+    private void validateOwner(Post post, Long currentUserId) {
+        if (post.getAuthorId() != null) {
+            if (!Objects.equals(post.getAuthorId(), currentUserId)) {
+                throw new DataValidationException("Only post owner can modify the post. Id:" + post.getId());
+            }
+            return;
+        }
+
+        if (post.getProjectId() != null) {
+            ProjectDto project = projectServiceClient.getProject(post.getProjectId());
+            if (!Objects.equals(project.ownerId(), currentUserId)) {
+                throw new DataValidationException("Only project owner can modify the post. Id:" + post.getId());
+            }
+            return;
+        }
+
+        throw new DataValidationException("Post has no owner. Id:" + post.getId());
     }
 }

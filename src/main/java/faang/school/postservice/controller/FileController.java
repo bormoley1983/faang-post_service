@@ -1,5 +1,6 @@
 package faang.school.postservice.controller;
 
+import faang.school.postservice.config.context.UserContext;
 import faang.school.postservice.service.FileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,6 +25,7 @@ import java.util.List;
 @RestController
 public class FileController {
     private final FileService fileService;
+    private final UserContext userContext;
 
     @Value("${file-controller.upload.max-files-per-post}")
     private int maxFiles;
@@ -39,7 +41,7 @@ public class FileController {
         if (files.size() > maxFiles) {
             throw new IllegalArgumentException("Cannot upload more than 10 files per post");
         }
-        fileService.uploadFiles(postId, files);
+        fileService.uploadFiles(postId, files, userContext.getUserId());
     }
 
     @Operation(summary = "Delete files from posts",
@@ -48,7 +50,7 @@ public class FileController {
     public void deleteFiles(
             @Parameter(description = "List of file IDs to delete", required = true)
             @RequestBody List<String> fileIds) {
-        fileService.deleteFiles(fileIds);
+        fileService.deleteFiles(fileIds, userContext.getUserId());
     }
 
     @Operation(summary = "Get presigned URL for a file",

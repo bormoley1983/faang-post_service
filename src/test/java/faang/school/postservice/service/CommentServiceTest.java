@@ -6,6 +6,8 @@ import faang.school.postservice.exception.UserNotFoundException;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Post;
 import faang.school.postservice.model.Resource;
+import faang.school.postservice.publisher.comment.AnalyticsCommentEventPublisher;
+import faang.school.postservice.publisher.comment.NotificationCommentEventPublisher;
 import faang.school.postservice.repository.CommentRepository;
 import faang.school.postservice.service.s3.AwsService;
 import feign.FeignException;
@@ -20,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.Pageable;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -35,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -63,6 +67,12 @@ public class CommentServiceTest {
 
     @Mock
     private ImageProcessor imageProcessor;
+
+    @Mock
+    private AnalyticsCommentEventPublisher analyticsCommentEventPublisher;
+
+    @Mock
+    private NotificationCommentEventPublisher notificationCommentEventPublisher;
 
     @InjectMocks
     private CommentService commentService;
@@ -117,12 +127,14 @@ public class CommentServiceTest {
         List<Comment> comments = List.of(comment1, comment2);
         List<Comment> expected = List.of(comment2, comment1);
 
-        when(commentRepository.findAllByPostId(POST_ID)).thenReturn(comments);
+        when(commentRepository.findAllByPostIdOrderByCreatedAtAsc(eq(POST_ID), any(Pageable.class)))
+                .thenReturn(comments);
 
         List<Comment> result = commentService.getCommentsByPostId(POST_ID);
 
         assertEquals(expected, result);
-        verify(commentRepository, times(1)).findAllByPostId(POST_ID);
+        verify(commentRepository, times(1))
+                .findAllByPostIdOrderByCreatedAtAsc(eq(POST_ID), any(Pageable.class));
         verify(postService, times(1)).get(POST_ID);
     }
 

@@ -2,6 +2,7 @@ package faang.school.postservice.controller;
 
 import faang.school.postservice.dto.like.LikeDto;
 import faang.school.postservice.dto.user.UserDto;
+import faang.school.postservice.config.context.UserContext;
 import faang.school.postservice.service.LikeService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -25,6 +26,7 @@ import java.util.List;
 public class LikeController {
 
     private final LikeService likeService;
+    private final UserContext userContext;
 
     @GetMapping("/likes/post/{postId}")
     public List<UserDto> getPostLiker(
@@ -40,40 +42,36 @@ public class LikeController {
         return likeService.getUsersWhoLikedComment(commentId);
     }
 
-    @PostMapping("/user/{userId}/post")
+    @PostMapping("/post")
     public ResponseEntity<Void> addLikeToPost(
-            @Valid @RequestBody LikeDto likeDto,
-            @NotNull(message = "User ID cannot be null")
-            @Positive(message = "User ID must be positive") @PathVariable Long userId) {
+            @Valid @RequestBody LikeDto likeDto) {
+        long userId = userContext.getUserId();
         likeService.addLikeToPost(likeDto.getPostId(), likeDto.getCommentId(), userId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    @DeleteMapping("/posts/{postId}/users/{userId}")
+    @DeleteMapping("/posts/{postId}")
     public ResponseEntity<Void> removeLikeFromPost(
             @NotNull(message = "Post ID cannot be null")
-            @Positive(message = "Post ID must be positive") @PathVariable Long postId,
-            @NotNull(message = "User ID cannot be null")
-            @Positive(message = "User ID must be positive") @PathVariable Long userId) {
+            @Positive(message = "Post ID must be positive") @PathVariable Long postId) {
+        long userId = userContext.getUserId();
         likeService.removeLikeFromPost(postId, userId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    @PostMapping("/user/{userId}/comment")
+    @PostMapping("/comment")
     public ResponseEntity<Void> addLikeToComment(
-            @Valid @RequestBody LikeDto likeDto,
-            @NotNull(message = "User ID cannot be null")
-            @Positive(message = "User ID must be positive") @PathVariable Long userId) {
+            @Valid @RequestBody LikeDto likeDto) {
+        long userId = userContext.getUserId();
         likeService.addLikeToComment(likeDto.getCommentId(), likeDto.getPostId(), userId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    @DeleteMapping("/comments/{commentId}/users/{userId}")
+    @DeleteMapping("/comments/{commentId}")
     public ResponseEntity<Void> removeLikeFromComment(
             @NotNull(message = "Comment ID cannot be null")
-            @Positive(message = "Comment ID must be positive") @PathVariable Long commentId,
-            @NotNull(message = "User ID cannot be null")
-            @Positive(message = "User ID must be positive") @PathVariable Long userId) {
+            @Positive(message = "Comment ID must be positive") @PathVariable Long commentId) {
+        long userId = userContext.getUserId();
         likeService.removeLikeFromComment(commentId, userId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }

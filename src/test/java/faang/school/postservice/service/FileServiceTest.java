@@ -79,14 +79,7 @@ public class FileServiceTest {
                 any(byte[].class)
         )).thenReturn(CompletableFuture.completedFuture(putObjectResponse));
 
-        Post post = mock(Post.class);
-
-        List<Resource> resources = new ArrayList<>();
-        when(post.getResources()).thenReturn(resources);
-
-        when(postService.get(postId)).thenReturn(post);
-
-        List<String> result = fileService.uploadFiles(postId, Collections.singletonList(file));
+        List<String> result = fileService.uploadFiles(postId, Collections.singletonList(file), 10L);
 
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -97,7 +90,7 @@ public class FileServiceTest {
                 anyMap(),
                 any(byte[].class)
         );
-        verify(postService, times(1)).update(any(Post.class));
+        verify(postService, times(1)).addResources(eq(postId), any(), eq(10L));
     }
 
     @Test
@@ -107,16 +100,10 @@ public class FileServiceTest {
         when(s3Service.deleteFileAsync(anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        Post post = mock(Post.class);
-        Resource resource = mock(Resource.class);
-        when(resource.getKey()).thenReturn("file1");
-        when(post.getResources()).thenReturn(Collections.singletonList(resource));
-        when(postService.findPostsByResourceKeys(fileIds)).thenReturn(Collections.singletonList(post));
-
-        fileService.deleteFiles(fileIds);
+        fileService.deleteFiles(fileIds, 10L);
 
         verify(s3Service, times(2)).deleteFileAsync(anyString(), anyString());
-        verify(postService, times(1)).update(any(Post.class));
+        verify(postService, times(1)).removeResources(fileIds, 10L);
     }
 
     @Test

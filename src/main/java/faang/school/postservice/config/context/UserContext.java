@@ -12,7 +12,11 @@ public class UserContext {
     }
 
     public long getUserId() {
-        return userIdHolder.get();
+        Long userId = userIdHolder.get();
+        if (userId == null) {
+            throw new IllegalStateException("Authenticated user is required");
+        }
+        return userId;
     }
 
     public void clear() {

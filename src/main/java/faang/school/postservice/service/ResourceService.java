@@ -6,6 +6,7 @@ import faang.school.postservice.repository.ResourceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class ResourceService {
                         new ResourceNotFoundException("There is no resource with key: " + key));
     }
 
+    @Transactional
     public void deleteResourceByKey(String key) {
         resourceRepository.deleteResourceByKey(key);
         log.info("Resource with key: {}. Was succesfully deleted", key);

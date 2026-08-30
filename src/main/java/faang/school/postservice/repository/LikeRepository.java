@@ -1,6 +1,7 @@
 package faang.school.postservice.repository;
 
 import faang.school.postservice.model.Like;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -17,7 +18,7 @@ public interface LikeRepository extends CrudRepository<Like, Long> {
 
     boolean existsByUserIdAndCommentId(Long userId, Long commentId);
 
-    List<Like> findByPostId(long postId);
+    List<Like> findByPostId(long postId, Pageable pageable);
 
-    List<Like> findByCommentId(long commentId);
+    List<Like> findByCommentId(long commentId, Pageable pageable);
 }

@@ -1,6 +1,5 @@
 package faang.school.postservice.service;
 
-import faang.school.postservice.annotations.PublishLikeEvent;
 import faang.school.postservice.client.UserServiceClient;
 import faang.school.postservice.dto.user.UserDto;
 import faang.school.postservice.exception.CommentNotFoundException;
@@ -9,8 +8,8 @@ import faang.school.postservice.exception.UserNotFoundException;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Like;
 import faang.school.postservice.model.Post;
-import faang.school.postservice.model.event.AnalyticsLikeEvent;
-import faang.school.postservice.model.event.NotificationLikeEvent;
+import faang.school.postservice.publisher.like.AnalyticsLikeEventPublisher;
+import faang.school.postservice.publisher.like.NotificationLikeEventPublisher;
 import faang.school.postservice.repository.CommentRepository;
 import faang.school.postservice.repository.LikeRepository;
 import faang.school.postservice.repository.PostRepository;
@@ -21,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,10 +36,15 @@ public class LikeService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final UserServiceClient userServiceClient;
+    private final AnalyticsLikeEventPublisher analyticsLikeEventPublisher;
+    private final NotificationLikeEventPublisher notificationLikeEventPublisher;
+
+    @Value("${like.query.max-size:100}")
+    private int maxQuerySize = 100;
 
     @Transactional(readOnly = true)
     public List<UserDto> getUsersWhoLikedPost(Long postId) {
-        List<Long> userIds = likeRepository.findByPostId(postId)
+        List<Long> userIds = likeRepository.findByPostId(postId, PageRequest.of(0, maxQuerySize))
                 .stream()
                 .map(Like::getUserId)
                 .collect(Collectors.toList());
@@ -48,14 +53,13 @@ public class LikeService {
 
     @Transactional(readOnly = true)
     public List<UserDto> getUsersWhoLikedComment(Long commentId) {
-        List<Long> userIds = likeRepository.findByCommentId(commentId)
+        List<Long> userIds = likeRepository.findByCommentId(commentId, PageRequest.of(0, maxQuerySize))
                 .stream()
                 .map(Like::getUserId)
                 .collect(Collectors.toList());
         return fetchUsersInBatches(userIds);
     }
 
-    @PublishLikeEvent(events = {AnalyticsLikeEvent.class, NotificationLikeEvent.class})
     @Transactional
     public Like addLikeToPost(Long postId, Long commentId, Long currentUserId) {
         try {
@@ -76,7 +80,11 @@ public class LikeService {
 
         post.getLikes().add(like);
         postRepository.save(post);
-        return likeRepository.save(like);
+        Like savedLike = likeRepository.save(like);
+        TransactionHooks.runAfterCommit(() -> analyticsLikeEventPublisher.publishEvent(savedLike));
+        TransactionHooks.runAfterCommit(() -> notificationLikeEventPublisher.publishEvent(savedLike));
+
+        return savedLike;
     }
 
     @Transactional

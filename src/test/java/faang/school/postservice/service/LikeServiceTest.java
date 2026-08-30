@@ -6,6 +6,8 @@ import faang.school.postservice.exception.UserNotFoundException;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Like;
 import faang.school.postservice.model.Post;
+import faang.school.postservice.publisher.like.AnalyticsLikeEventPublisher;
+import faang.school.postservice.publisher.like.NotificationLikeEventPublisher;
 import faang.school.postservice.repository.CommentRepository;
 import faang.school.postservice.repository.LikeRepository;
 import faang.school.postservice.repository.PostRepository;
@@ -29,6 +31,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -54,6 +57,12 @@ public class LikeServiceTest {
 
     @Mock
     private CommentRepository commentRepository;
+
+    @Mock
+    private AnalyticsLikeEventPublisher analyticsLikeEventPublisher;
+
+    @Mock
+    private NotificationLikeEventPublisher notificationLikeEventPublisher;
 
 
 
@@ -91,7 +100,7 @@ public class LikeServiceTest {
         Long postId = 1L;
         Long userId = 1L;
         likeService.removeLikeFromPost(postId, userId);
-        verify(likeRepository, times(1)).deleteByUserIdAndPostId(postId,userId);
+        verify(likeRepository, times(1)).deleteByUserIdAndPostId(userId, postId);
     }
 
     @Test
@@ -128,7 +137,7 @@ public class LikeServiceTest {
         Long commentId = 1L;
         Long userId = 1L;
         likeService.removeLikeFromComment(commentId, userId);
-        verify(likeRepository, times(1)).deleteByUserIdAndCommentId(commentId,userId);
+        verify(likeRepository, times(1)).deleteByUserIdAndCommentId(userId, commentId);
     }
 
     @Test
@@ -140,7 +149,7 @@ public class LikeServiceTest {
                 Like.builder().userId(2L).build()
         );
 
-        when(likeRepository.findByPostId(postId)).thenReturn(likes);
+        when(likeRepository.findByPostId(eq(postId), any(Pageable.class))).thenReturn(likes);
 
         List<UserDto> users = Arrays.asList(
                 new UserDto(1L, "user1", "user1@example.com"),
@@ -158,7 +167,7 @@ public class LikeServiceTest {
         assertEquals(2L, result.get(1).id());
         assertEquals("user2", result.get(1).username());
 
-        verify(likeRepository, times(1)).findByPostId(postId);
+        verify(likeRepository, times(1)).findByPostId(eq(postId), any(Pageable.class));
         verify(userServiceClient, times(1))
                 .getUsersByIds(userIds, PageRequest.of(0, 100));
     }
@@ -166,13 +175,13 @@ public class LikeServiceTest {
     @Test
     void testGetUsersWhoLikedPost_NoLikes() {
         Long postId = 1L;
-        when(likeRepository.findByPostId(postId)).thenReturn(Collections.emptyList());
+        when(likeRepository.findByPostId(eq(postId), any(Pageable.class))).thenReturn(Collections.emptyList());
 
         List<UserDto> result = likeService.getUsersWhoLikedPost(postId);
 
         assertEquals(0, result.size());
 
-        verify(likeRepository, times(1)).findByPostId(postId);
+        verify(likeRepository, times(1)).findByPostId(eq(postId), any(Pageable.class));
         verify(userServiceClient, never()).getUsersByIds(anyList(), any(Pageable.class));
     }
 
@@ -185,7 +194,7 @@ public class LikeServiceTest {
                 Like.builder().userId(2L).build()
         );
 
-        when(likeRepository.findByCommentId(commentId)).thenReturn(likes);
+        when(likeRepository.findByCommentId(eq(commentId), any(Pageable.class))).thenReturn(likes);
 
         List<UserDto> users = Arrays.asList(
                 new UserDto(1L, "user1", "user1@example.com"),
@@ -203,7 +212,7 @@ public class LikeServiceTest {
         assertEquals(2L, result.get(1).id());
         assertEquals("user2", result.get(1).username());
 
-        verify(likeRepository, times(1)).findByCommentId(commentId);
+        verify(likeRepository, times(1)).findByCommentId(eq(commentId), any(Pageable.class));
         verify(userServiceClient, times(1))
                 .getUsersByIds(userIds, PageRequest.of(0, 100));
     }
@@ -211,13 +220,13 @@ public class LikeServiceTest {
     @Test
     void testGetUsersWhoLikedComment_NoLikes() {
         Long commentId = 1L;
-        when(likeRepository.findByCommentId(commentId)).thenReturn(Collections.emptyList());
+        when(likeRepository.findByCommentId(eq(commentId), any(Pageable.class))).thenReturn(Collections.emptyList());
 
         List<UserDto> result = likeService.getUsersWhoLikedComment(commentId);
 
         assertEquals(0, result.size());
 
-        verify(likeRepository, times(1)).findByCommentId(commentId);
+        verify(likeRepository, times(1)).findByCommentId(eq(commentId), any(Pageable.class));
         verify(userServiceClient, never()).getUsersByIds(anyList(), any(Pageable.class));
     }
 }

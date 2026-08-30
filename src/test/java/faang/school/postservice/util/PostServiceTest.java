@@ -1,7 +1,10 @@
 package faang.school.postservice.util;
 
+import faang.school.postservice.client.ProjectServiceClient;
 import faang.school.postservice.exception.DataValidationException;
 import faang.school.postservice.model.Post;
+import faang.school.postservice.model.Resource;
+import faang.school.postservice.publisher.post.PostViewPublisher;
 import faang.school.postservice.repository.PostRepository;
 import faang.school.postservice.service.AiModerationService;
 import faang.school.postservice.service.AsyncModerationService;
@@ -23,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -36,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,6 +83,12 @@ public class PostServiceTest {
     @Mock
     private UserCashService userCashService;
 
+    @Mock
+    private PostViewPublisher postViewPublisher;
+
+    @Mock
+    private ProjectServiceClient projectServiceClient;
+
     @InjectMocks
     private PostService postService;
 
@@ -93,6 +104,7 @@ public class PostServiceTest {
 
     @BeforeEach
     public void SetUp() {
+        ReflectionTestUtils.setField(postService, "maxQuerySize", 100);
         post = new Post();
         post.setId(1L);
         post.setAuthorId(1L);
@@ -144,7 +156,7 @@ public class PostServiceTest {
         when(internalServices.userExists(1L)).thenReturn(true);
         when(postRepository.save(any(Post.class))).thenReturn(post);
 
-        Post result = postService.createDraft(post);
+        Post result = postService.createDraft(post, 1L);
 
         assertNotNull(result);
     }
@@ -154,7 +166,7 @@ public class PostServiceTest {
     public void createDraft_InvalidAuthor() {
         when(internalServices.userExists(1L)).thenReturn(false);
 
-        assertThrows(InvalidParameterException.class, () -> postService.createDraft(post));
+        assertThrows(InvalidParameterException.class, () -> postService.createDraft(post, 1L));
     }
 
     @Test
@@ -162,7 +174,7 @@ public class PostServiceTest {
     public void createDraft_InvalidProject() {
         when(internalServices.projectExists(1L)).thenReturn(false);
 
-        assertThrows(InvalidParameterException.class, () -> postService.createDraft(projectPost));
+        assertThrows(InvalidParameterException.class, () -> postService.createDraft(projectPost, 1L));
     }
 
     @Test
@@ -173,7 +185,7 @@ public class PostServiceTest {
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
         when(postRepository.save(any(Post.class))).thenReturn(post);
 
-        Post result = postService.publish(1L);
+        Post result = postService.publish(1L, 1L);
 
         assertTrue(result.isPublished());
         assertNotNull(result.getPublishedAt());
@@ -184,7 +196,7 @@ public class PostServiceTest {
     public void publish_PostNotFound() {
         when(postRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(DataValidationException.class, () -> postService.publish(1L));
+        assertThrows(DataValidationException.class, () -> postService.publish(1L, 1L));
     }
 
     @Test
@@ -194,7 +206,16 @@ public class PostServiceTest {
 
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
 
-        assertThrows(DataValidationException.class, () -> postService.publish(1L));
+        assertThrows(DataValidationException.class, () -> postService.publish(1L, 1L));
+    }
+
+    @Test
+    public void publish_NotOwner() {
+        when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        assertThrows(DataValidationException.class, () -> postService.publish(1L, 2L));
+
+        verify(postRepository, never()).save(any(Post.class));
     }
 
     @Test
@@ -203,7 +224,7 @@ public class PostServiceTest {
         when(postRepository.findById(1L)).thenReturn(Optional.of(originalPost));
         when(postRepository.save(any(Post.class))).thenReturn(post);
 
-        Post result = postService.update(post);
+        Post result = postService.update(post, 1L);
 
         assertNotNull(result);
     }
@@ -213,25 +234,42 @@ public class PostServiceTest {
     public void update_PostNotFound() {
         when(postRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(DataValidationException.class, () -> postService.update(post));
+        assertThrows(DataValidationException.class, () -> postService.update(post, 1L));
     }
 
     @Test
     @Order(9)
-    public void update_AuthorChanged() {
+    public void update_IgnoresCallerSuppliedAuthor() {
         post.setAuthorId(2L);
 
         when(postRepository.findById(1L)).thenReturn(Optional.of(originalPost));
+        when(postRepository.save(any(Post.class))).thenReturn(originalPost);
 
-        assertThrows(DataValidationException.class, () -> postService.update(post));
+        assertDoesNotThrow(() -> postService.update(post, 1L));
+        assertEquals(1L, originalPost.getAuthorId());
+    }
+
+    @Test
+    public void addResources_PersistsResourcesForOwner() {
+        Resource resource = Resource.builder().key("post/1/resource").build();
+        when(postRepository.findById(1L)).thenReturn(Optional.of(originalPost));
+        when(postRepository.save(originalPost)).thenReturn(originalPost);
+
+        Post result = postService.addResources(1L, List.of(resource), 1L);
+
+        assertSame(originalPost, result);
+        assertTrue(originalPost.getResources().contains(resource));
+        assertSame(originalPost, resource.getPost());
+        verify(postRepository).save(originalPost);
     }
 
     @Test
     @Order(10)
     public void delete_Valid() {
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(postRepository.save(any(Post.class))).thenReturn(post);
 
-        assertDoesNotThrow(() -> postService.delete(1L));
+        assertDoesNotThrow(() -> postService.delete(1L, 1L));
     }
 
     @Test
@@ -239,7 +277,7 @@ public class PostServiceTest {
     public void delete_PostNotFound() {
         when(postRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(DataValidationException.class, () -> postService.delete(1L));
+        assertThrows(DataValidationException.class, () -> postService.delete(1L, 1L));
     }
 
     @Test
@@ -263,7 +301,8 @@ public class PostServiceTest {
     @Test
     @Order(14)
     public void getDraftsByAuthorId_Valid() {
-        when(postRepository.findByAuthorId(anyLong())).thenReturn(List.of(post1, post2));
+        when(postRepository.findByAuthorIdAndDeletedFalseAndPublishedFalseOrderByCreatedAtDesc(anyLong(), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of(post2, post1), PageRequest.of(0, 100), 2));
 
         List<Post> result = postService.getDraftsByAuthorId(1L);
 
@@ -275,7 +314,8 @@ public class PostServiceTest {
     @Test
     @Order(15)
     public void getDraftsByProjectId_Valid() {
-        when(postRepository.findByProjectId(anyLong())).thenReturn(List.of(post1, post2));
+        when(postRepository.findByProjectIdAndDeletedFalseAndPublishedFalseOrderByCreatedAtDesc(anyLong(), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of(post2, post1), PageRequest.of(0, 100), 2));
 
         List<Post> result = postService.getDraftsByProjectId(1L);
 
@@ -292,7 +332,8 @@ public class PostServiceTest {
         post2.setPublished(true);
         post2.setPublishedAt(LocalDateTime.now());
 
-        when(postRepository.findByAuthorId(anyLong())).thenReturn(List.of(post1, post2));
+        when(postRepository.findByAuthorIdAndDeletedFalseAndPublishedTrueOrderByPublishedAtDesc(anyLong(), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of(post2, post1), PageRequest.of(0, 100), 2));
 
         List<Post> result = postService.getPostsByAuthorId(1L);
 
@@ -309,7 +350,8 @@ public class PostServiceTest {
         post2.setPublished(true);
         post2.setPublishedAt(LocalDateTime.now());
 
-        when(postRepository.findByProjectId(anyLong())).thenReturn(List.of(post1, post2));
+        when(postRepository.findByProjectIdAndDeletedFalseAndPublishedTrueOrderByPublishedAtDesc(anyLong(), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of(post2, post1), PageRequest.of(0, 100), 2));
 
         List<Post> result = postService.getPostsByProjectId(1L);
 

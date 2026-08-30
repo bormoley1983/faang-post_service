@@ -1,14 +1,13 @@
 package faang.school.postservice.service;
 
-import faang.school.postservice.annotations.PublishCommentEvent;
 import faang.school.postservice.client.UserServiceClient;
 import faang.school.postservice.exception.CommentNotFoundException;
 import faang.school.postservice.exception.UserNotFoundException;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Post;
 import faang.school.postservice.model.Resource;
-import faang.school.postservice.model.event.AnalyticsCommentEvent;
-import faang.school.postservice.model.event.NotificationCommentEvent;
+import faang.school.postservice.publisher.comment.AnalyticsCommentEventPublisher;
+import faang.school.postservice.publisher.comment.NotificationCommentEventPublisher;
 import faang.school.postservice.repository.CommentRepository;
 
 import faang.school.postservice.service.s3.AwsService;
@@ -17,6 +16,8 @@ import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +26,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -57,18 +57,24 @@ public class CommentService {
     @Value("${commenter-banner.comments-count-for-ban}")
     private int unverifiedCommentsCountForBan;
 
+    @Value("${moderation.comment.batch-size:200}")
+    private int moderationBatchSize = 200;
+
+    @Value("${comment.query.max-size:100}")
+    private int maxQuerySize = 100;
+
     private final ModerationDictionaryUtil moderationDictionaryUtil;
+    private final AnalyticsCommentEventPublisher analyticsCommentEventPublisher;
+    private final NotificationCommentEventPublisher notificationCommentEventPublisher;
 
     @Transactional(readOnly = true)
     public List<Comment> getCommentsByPostId(Long postId) {
         postService.get(postId);
 
-        return commentRepository.findAllByPostId(postId).stream()
-                .sorted(Comparator.comparing(Comment::getCreatedAt))
-                .toList();
+        return commentRepository.findAllByPostIdOrderByCreatedAtAsc(
+                postId, PageRequest.of(0, maxQuerySize));
     }
 
-    @PublishCommentEvent(events = {AnalyticsCommentEvent.class, NotificationCommentEvent.class})
     @Transactional
     public Comment createComment(Comment comment, Long postId, Long authorId) {
         Post post = postService.get(postId);
@@ -81,7 +87,11 @@ public class CommentService {
         comment.setPost(post);
         comment.setAuthorId(authorId);
 
-        return commentRepository.save(comment);
+        Comment savedComment = commentRepository.save(comment);
+        TransactionHooks.runAfterCommit(() -> analyticsCommentEventPublisher.publishEvent(savedComment));
+        TransactionHooks.runAfterCommit(() -> notificationCommentEventPublisher.publishEvent(savedComment));
+
+        return savedComment;
     }
 
     @Transactional
@@ -104,9 +114,11 @@ public class CommentService {
                 .orElseThrow(() -> new CommentNotFoundException("There is no comment with id + " + commentId));
 
         commentValidator.validateAuthor(comment, userId);
-        clearCommentResourcesIfExist(comment);
+        String smallImageKey = comment.getSmallImageFileKey();
+        String largeImageKey = comment.getLargeImageFileKey();
 
         commentRepository.delete(comment);
+        TransactionHooks.runAfterCommit(() -> deleteCommentResources(smallImageKey, largeImageKey));
 
         return comment;
     }
@@ -120,7 +132,8 @@ public class CommentService {
         commentValidator.validateImageSize(image);
         commentValidator.validateImageFormat(image);
 
-        clearCommentResourcesIfExist(comment);
+        String oldSmallImageKey = comment.getSmallImageFileKey();
+        String oldLargeImageKey = comment.getLargeImageFileKey();
 
         String fileName = image.getContentType();
         String format = fileName.substring(fileName.lastIndexOf('/') + 1);
@@ -128,10 +141,11 @@ public class CommentService {
         String keyLarge = generateImageKey(comment, format, "large");
         String keySmall = generateImageKey(comment, format, "small");
 
-        long largeSize = resizeUploadImage(image, bucketName, keyLarge, format, LARGE_IMAGE_MAX_SIZE);
-        long smallSize = resizeUploadImage(image, bucketName, keySmall, format, SMALL_IMAGE_MAX_SIZE);
+        try {
+            long largeSize = resizeUploadImage(image, bucketName, keyLarge, format, LARGE_IMAGE_MAX_SIZE);
+            long smallSize = resizeUploadImage(image, bucketName, keySmall, format, SMALL_IMAGE_MAX_SIZE);
 
-        Resource large = Resource.builder()
+            Resource large = Resource.builder()
                 .key(keyLarge)
                 .type(format)
                 .size(largeSize)
@@ -139,7 +153,7 @@ public class CommentService {
                 .post(comment.getPost())
                 .build();
 
-        Resource small = Resource.builder()
+            Resource small = Resource.builder()
                 .key(keySmall)
                 .type(format)
                 .size(smallSize)
@@ -147,13 +161,20 @@ public class CommentService {
                 .post(comment.getPost())
                 .build();
 
-        resourceService.createResource(large);
-        resourceService.createResource(small);
+            resourceService.createResource(large);
+            resourceService.createResource(small);
 
-        comment.setLargeImageFileKey(keyLarge);
-        comment.setSmallImageFileKey(keySmall);
+            comment.setLargeImageFileKey(keyLarge);
+            comment.setSmallImageFileKey(keySmall);
+            Comment savedComment = commentRepository.save(comment);
 
-        return commentRepository.save(comment);
+            TransactionHooks.runAfterCommit(() -> deleteCommentResources(oldSmallImageKey, oldLargeImageKey));
+            TransactionHooks.runAfterRollback(() -> deleteCommentObjects(keySmall, keyLarge));
+            return savedComment;
+        } catch (RuntimeException ex) {
+            deleteCommentObjects(keySmall, keyLarge);
+            throw ex;
+        }
     }
 
     @Transactional
@@ -178,9 +199,14 @@ public class CommentService {
 
         commentValidator.validateAuthor(comment, userId);
 
-        clearCommentResourcesIfExist(comment);
+        String smallImageKey = comment.getSmallImageFileKey();
+        String largeImageKey = comment.getLargeImageFileKey();
+        comment.setSmallImageFileKey(null);
+        comment.setLargeImageFileKey(null);
 
-        return commentRepository.save(comment);
+        Comment savedComment = commentRepository.save(comment);
+        TransactionHooks.runAfterCommit(() -> deleteCommentResources(smallImageKey, largeImageKey));
+        return savedComment;
     }
 
     private long resizeUploadImage(MultipartFile image, String bucketName, String key, String format, int maxSize) {
@@ -200,37 +226,52 @@ public class CommentService {
                 comment.getPost().getId(), timestamp, size, format);
     }
 
-    private void clearCommentResourcesIfExist(Comment comment) {
-        Stream.of(comment.getSmallImageFileKey(), comment.getLargeImageFileKey())
+    private void deleteCommentResources(String smallImageKey, String largeImageKey) {
+        Stream.of(smallImageKey, largeImageKey)
                 .filter(Objects::nonNull)
                 .forEach(key -> {
                     resourceService.deleteResourceByKey(key);
                     awsService.deleteFile(bucketName, key);
                 });
+    }
 
-        comment.setSmallImageFileKey(null);
-        comment.setLargeImageFileKey(null);
+    private void deleteCommentObjects(String smallImageKey, String largeImageKey) {
+        Stream.of(smallImageKey, largeImageKey)
+                .filter(Objects::nonNull)
+                .forEach(key -> awsService.deleteFile(bucketName, key));
     }
 
     public int moderateComments() {
-        List<Comment> unverifiedComments = commentRepository.findUnverifiedComments();
+        int moderatedCount = 0;
+        while (true) {
+            Pageable pageable = PageRequest.of(0, moderationBatchSize);
+            List<Long> ids = commentRepository.findUnverifiedCommentIds(pageable);
 
-        if (unverifiedComments.isEmpty()) {
+            if (ids.isEmpty()) {
+                break;
+            }
+
+            List<Comment> comments = commentRepository.findAllByIdIn(ids);
+            comments.forEach(comment -> {
+                boolean containsBannedWords = moderationDictionaryUtil.containsBannedWords(comment.getContent());
+                comment.setVerified(!containsBannedWords);
+                comment.setVerifiedDate(LocalDateTime.now());
+            });
+
+            commentRepository.saveAll(comments);
+            moderatedCount += comments.size();
+
+            if (ids.size() < moderationBatchSize) {
+                break;
+            }
+        }
+
+        if (moderatedCount == 0) {
             log.info("No unverified comments to moderate");
             return 0;
         }
 
-        unverifiedComments.parallelStream()
-                .peek(comment -> log.info("Moderating comment ID: {}", comment.getId()))
-                .forEach(comment -> {
-                    boolean containsBannedWords = moderationDictionaryUtil.containsBannedWords(comment.getContent());
-                    comment.setVerified(!containsBannedWords);
-                    comment.setVerifiedDate(LocalDateTime.now());
-                });
-
-        commentRepository.saveAll(unverifiedComments);
-        log.info("Moderated {} comments", unverifiedComments.size());
-
-        return unverifiedComments.size();
+        log.info("Moderated {} comments", moderatedCount);
+        return moderatedCount;
     }
 }

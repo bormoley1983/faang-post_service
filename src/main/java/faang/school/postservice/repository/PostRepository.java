@@ -28,7 +28,7 @@ public interface PostRepository extends CrudRepository<Post, Long> {
 
     List<Post> findByVerifiedDateIsNull();
 
-    @Query("SELECT p FROM Post p JOIN p.resources r WHERE r.key IN :resourceKeys")
+    @Query("SELECT DISTINCT p FROM Post p JOIN p.resources r WHERE r.key IN :resourceKeys")
     List<Post> findPostsByResourceKeys(List<String> resourceKeys);
 
         @Query(value = "SELECT p.author_id " +
@@ -40,4 +40,12 @@ public interface PostRepository extends CrudRepository<Post, Long> {
     List<Long> findUserIdsToBanWithUnverifiedPosts(int maxPostsToBan);
 
     Page<Post> findByPublishedFalse(Pageable pageable);
+
+    Page<Post> findByAuthorIdAndDeletedFalseAndPublishedFalseOrderByCreatedAtDesc(Long authorId, Pageable pageable);
+
+    Page<Post> findByProjectIdAndDeletedFalseAndPublishedFalseOrderByCreatedAtDesc(Long projectId, Pageable pageable);
+
+    Page<Post> findByAuthorIdAndDeletedFalseAndPublishedTrueOrderByPublishedAtDesc(Long authorId, Pageable pageable);
+
+    Page<Post> findByProjectIdAndDeletedFalseAndPublishedTrueOrderByPublishedAtDesc(Long projectId, Pageable pageable);
 }

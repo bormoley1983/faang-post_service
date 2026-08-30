@@ -1,6 +1,7 @@
 package faang.school.postservice.controller;
 
 import faang.school.postservice.dto.post.PostDto;
+import faang.school.postservice.config.context.UserContext;
 import faang.school.postservice.mapper.PostMapper;
 import faang.school.postservice.model.Post;
 import faang.school.postservice.service.PostService;
@@ -29,6 +30,7 @@ public class PostController {
     private final PostService postService;
     private final PostMapper postMapper;
     private final PostDtoValidator postDtoValidator;
+    private final UserContext userContext;
 
     @Operation(
             summary = "Create a draft post",
@@ -38,9 +40,17 @@ public class PostController {
     )
     @PostMapping("/draft")
     public PostDto createDraft(@RequestBody @Valid PostDto postDto) {
+        long currentUserId = userContext.getUserId();
+
+        if (postDto.getProjectId() == null) {
+            postDto.setAuthorId(currentUserId);
+        } else {
+            postDto.setAuthorId(null);
+        }
         postDtoValidator.isValid(postDto, null);
+
         Post receivedDraft = postMapper.toEntity(postDto);
-        Post createdDraft = postService.createDraft(receivedDraft);
+        Post createdDraft = postService.createDraft(receivedDraft, currentUserId);
         return postMapper.toDto(createdDraft);
     }
 
@@ -52,7 +62,8 @@ public class PostController {
     @PostMapping("/publish/{postId}")
     public PostDto publish(@Parameter(description = "ID of the post to be published")
                            @PathVariable Long postId) {
-        Post publishedPost = postService.publish(postId);
+        long currentUserId = userContext.getUserId();
+        Post publishedPost = postService.publish(postId, currentUserId);
         return postMapper.toDto(publishedPost);
     }
 
@@ -62,8 +73,9 @@ public class PostController {
     )
     @PatchMapping
     public PostDto update(@RequestBody PostDto postDto) {
+        long currentUserId = userContext.getUserId();
         Post receivedPostData = postMapper.toEntity(postDto);
-        Post updatedPost = postService.update(receivedPostData);
+        Post updatedPost = postService.update(receivedPostData, currentUserId);
         return postMapper.toDto(updatedPost);
     }
 
@@ -75,7 +87,8 @@ public class PostController {
     @DeleteMapping("/{postId}")
     public void delete(@Parameter(description = "ID of the post to be deleted")
                        @PathVariable Long postId) {
-        postService.delete(postId);
+        long currentUserId = userContext.getUserId();
+        postService.delete(postId, currentUserId);
     }
 
     @Operation(

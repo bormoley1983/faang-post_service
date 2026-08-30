@@ -1,6 +1,7 @@
 package faang.school.postservice.controller;
 
 import faang.school.postservice.dto.comment.CommentDto;
+import faang.school.postservice.config.context.UserContext;
 import faang.school.postservice.mapper.CommentMapper;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.service.CommentService;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,6 +35,7 @@ import java.util.List;
 public class CommentController {
     private final CommentService commentService;
     private final CommentMapper commentMapper;
+    private final UserContext userContext;
 
 
     @GetMapping("/{postId}")
@@ -47,9 +49,8 @@ public class CommentController {
     @PostMapping("/{postId}")
     public ResponseEntity<CommentDto> createComment(@RequestBody @Valid CommentDto commentDto,
                                                     @PathVariable @NotNull
-                                                    @Positive(message = "postId should be positive") Long postId,
-                                                    @RequestHeader("x-user-id") @NotNull
-                                                    @Positive(message = "userId should be positive") Long userId) {
+                                                    @Positive(message = "postId should be positive") Long postId) {
+        long userId = userContext.getUserId();
         Comment comment = commentMapper.toEntity(commentDto);
         Comment result = commentService.createComment(comment, postId, userId);
         return ResponseEntity.ok(commentMapper.toDto(result));
@@ -58,9 +59,8 @@ public class CommentController {
     @PutMapping("/{commentId}")
     public ResponseEntity<CommentDto> updateComment(@RequestBody @Valid CommentDto commentDto,
                                                     @PathVariable @NotNull
-                                                    @Positive(message = "commentId should be positive") Long commentId,
-                                                    @RequestHeader("x-user-id") @NotNull
-                                                    @Positive(message = "userId should be positive") Long userId) {
+                                                    @Positive(message = "commentId should be positive") Long commentId) {
+        long userId = userContext.getUserId();
         Comment comment = commentMapper.toEntity(commentDto);
         Comment updated = commentService.updateComment(commentId, comment, userId);
         return ResponseEntity.ok(commentMapper.toDto(updated));
@@ -69,9 +69,8 @@ public class CommentController {
     @DeleteMapping("/{commentId}")
     public ResponseEntity<CommentDto> deleteComment(@PathVariable
                                                  @NotNull
-                                                 @Positive(message = "commentId should be positive") Long commentId,
-                                                 @RequestHeader("x-user-id") @NotNull
-                                                 @Positive(message = "userId should be positive") Long userId) {
+                                                 @Positive(message = "commentId should be positive") Long commentId) {
+        long userId = userContext.getUserId();
         Comment deleted = commentService.deleteComment(commentId, userId);
         return ResponseEntity.ok(commentMapper.toDto(deleted));
     }
@@ -92,19 +91,15 @@ public class CommentController {
 
     @PutMapping("/{commentId}/image")
     public ResponseEntity<CommentDto> attachImageToComment(@PathVariable @Positive Long commentId,
-                                                           @RequestBody MultipartFile image,
-                                                           @RequestHeader("x-user-id")
-                                                           @NotNull
-                                                           @Positive Long userId) {
+                                                           @RequestParam("image") MultipartFile image) {
+        long userId = userContext.getUserId();
         Comment comment = commentService.attachImageToComment(commentId, image, userId);
         return ResponseEntity.ok(commentMapper.toDto(comment));
     }
 
     @DeleteMapping("/{commentId}/image")
-    public ResponseEntity<CommentDto> deleteCommentImage(@PathVariable @Positive Long commentId,
-                                                         @RequestHeader("x-user-id")
-                                                         @NotNull
-                                                         @Positive Long userId) {
+    public ResponseEntity<CommentDto> deleteCommentImage(@PathVariable @Positive Long commentId) {
+        long userId = userContext.getUserId();
         Comment comment = commentService.deleteCommentImage(commentId, userId);
         return ResponseEntity.ok(commentMapper.toDto(comment));
     }

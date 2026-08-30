@@ -1,14 +1,12 @@
 package faang.school.postservice.service;
 
 import faang.school.postservice.config.AwsS3ApiConfig;
-import faang.school.postservice.model.Post;
 import faang.school.postservice.model.Resource;
 import faang.school.postservice.service.aws.S3Service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
@@ -38,34 +36,37 @@ public class FileService {
     @Value("${file-controller.image.max-height-rectangle}")
     private int maxHeightRectangle;
 
-    public List<String> uploadFiles(Long postId, List<MultipartFile> files) {
+    public List<String> uploadFiles(Long postId, List<MultipartFile> files, Long currentUserId) {
         List<String> fileKeys = new ArrayList<>();
+        List<Resource> resources = new ArrayList<>();
 
-        files.forEach(file -> {
-            validateFile(file);
-            try {
+        try {
+            for (MultipartFile file : files) {
+                validateFile(file);
                 byte[] fileBytes = processFile(file);
                 String key = uploadFileToS3(postId, file, fileBytes);
                 fileKeys.add(key);
-            } catch (IOException e) {
-                fileKeys.forEach(key -> s3Service.deleteFileAsync(awsS3ApiConfig.getBucket(),key).join());
-                throw new RuntimeException("Failed to process file", e);
+                String originalFilename = file.getOriginalFilename();
+                resources.add(Resource.builder()
+                        .key(key)
+                        .name(originalFilename == null || originalFilename.isBlank() ? key : originalFilename)
+                        .type(file.getContentType())
+                        .size(fileBytes.length)
+                        .build());
             }
-        });
-
-        updatePostWithResources(postId, fileKeys);
+            postService.addResources(postId, resources, currentUserId);
+        } catch (IOException | RuntimeException ex) {
+            fileKeys.forEach(key -> s3Service.deleteFileAsync(awsS3ApiConfig.getBucket(), key).join());
+            throw ex instanceof RuntimeException runtimeException
+                    ? runtimeException
+                    : new RuntimeException("Failed to process file", ex);
+        }
 
         return fileKeys;
     }
 
-    public void deleteFiles(List<String> fileIds) {
-        List<Post> postsToUpdate = postService.findPostsByResourceKeys(fileIds);
-        for (Post post : postsToUpdate) {
-            List<Resource> resources = new ArrayList<>(post.getResources());
-            resources.removeIf(resource -> fileIds.contains(resource.getKey()));
-            post.setResources(resources);
-            postService.update(post);
-        }
+    public void deleteFiles(List<String> fileIds, Long currentUserId) {
+        postService.removeResources(fileIds, currentUserId);
         for (String fileId : fileIds) {
             s3Service.deleteFileAsync(awsS3ApiConfig.getBucket(), fileId).join();
         }
@@ -112,21 +113,8 @@ public class FileService {
         metadata.put("Content-Length", String.valueOf(fileBytes.length));
         metadata.put("Original-Filename", file.getOriginalFilename());
         String key = "post/" + postId + "/" + UUID.randomUUID();
-        PutObjectResponse result = s3Service.uploadFileAsync(awsS3ApiConfig.getBucket(), key, metadata, fileBytes).join();
-        return result.eTag();
-    }
-
-    private void updatePostWithResources(Long postId, List<String> fileKeys) {
-        Post postToUpdate = postService.get(postId);
-        List<Resource> resources = new ArrayList<>(postToUpdate.getResources());
-        fileKeys.forEach(key -> {
-            resources.add(Resource.builder()
-                    .key(key)
-                    .post(postToUpdate)
-                    .build());
-        });
-        postToUpdate.setResources(resources);
-        postService.update(postToUpdate);
+        s3Service.uploadFileAsync(awsS3ApiConfig.getBucket(), key, metadata, fileBytes).join();
+        return key;
     }
 
     private BufferedImage resizeImageIfNeeded(BufferedImage image) {
