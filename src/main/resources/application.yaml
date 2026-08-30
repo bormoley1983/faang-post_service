@@ -1,9 +1,9 @@
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DATABASE_URL:jdbc:postgresql://host.docker.internal:5432/postgres}
+    url: ${DATABASE_URL:jdbc:postgresql://host.docker.internal:5432/faang}
     username: ${DATABASE_USERNAME:user}
-    password: ${DATABASE_PASSWORD:password}
+    password: ${DATABASE_PASSWORD}
     hikari:
       auto-commit: false
       schema: ${DATABASE_SCHEMA:post_service}
@@ -80,8 +80,8 @@ logging:
 aws:
   s3:
     endpoint: ${MINIO_SERVICE_HOST:http://localhost:9000}
-    accessKey: ${MINIO_ACCESS_KEY:user}
-    secretKey: ${MINIO_SECRET_KEY:password}
+    accessKey: ${MINIO_ACCESS_KEY}
+    secretKey: ${MINIO_SECRET_KEY}
     bucket: ${MINIO_BUCKET_NAME:corpbucket}
     region: us-east-1
     maxConcurrency: 50
@@ -111,7 +111,7 @@ user-service:
     getById: /api/v1/users/{id}
 payment-service:
   host: ${PAYMENT_SERVICE_HOST:localhost}
-  port: ${PAYMENT_SERVICE_PORT:9080}
+  port: ${PAYMENT_SERVICE_PORT:8082}
 
 moderation:
   cron: "0 0 0 * * ?"
