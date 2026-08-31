@@ -116,7 +116,7 @@ payment-service:
 moderation:
   cron: "0 0 0 * * ?"
   threadSize: 100
-  api-url: ${MODERATION_API_URL:"https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=AIzaSyCvYJUwADYD2pGzdhoY5QunJEgrvgPbbpg"}
+  api-url: ${MODERATION_API_URL}
   bad-words-path: ${MODERATION_BAD_WORDS:classpath:moderation/bad-words.json}
   chunk-size: 500
   banned-words-path: ${MODERATION_BANNED_WORDS:classpath:moderation/banned-words.json}

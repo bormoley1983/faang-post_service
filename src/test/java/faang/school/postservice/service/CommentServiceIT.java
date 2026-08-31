@@ -25,7 +25,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.kafka.ConfluentKafkaContainer;
+import org.testcontainers.kafka.KafkaContainer;
 import org.awaitility.Awaitility;
 import org.testcontainers.utility.DockerImageName;
 
@@ -45,14 +45,14 @@ import static org.mockito.Mockito.when;
 public class CommentServiceIT {
 
     
-    private static final DockerImageName KAFKA_IMAGE = DockerImageName.parse("confluentinc/cp-kafka:7.7.7");
+    private static final DockerImageName KAFKA_IMAGE = DockerImageName.parse("apache/kafka:4.3.1");
 
     static Network testNetwork = Network.newNetwork();
 
     @Container
     @SuppressWarnings("resource")
-    protected static final  ConfluentKafkaContainer KAFKA_CONTAINER = 
-        new ConfluentKafkaContainer(KAFKA_IMAGE)
+    protected static final KafkaContainer KAFKA_CONTAINER =
+        new KafkaContainer(KAFKA_IMAGE)
             .withNetwork(testNetwork)
             .withNetworkAliases("test-kafka");
 

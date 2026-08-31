@@ -28,7 +28,7 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.kafka.ConfluentKafkaContainer;
+import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
@@ -72,7 +72,7 @@ public class NotificationCommentEventPublisherIT {
     private Comment comment;
 
     private static final DockerImageName POSTGRES_IMAGE = DockerImageName.parse("postgres:18-alpine");
-    private static final DockerImageName KAFKA_IMAGE = DockerImageName.parse("confluentinc/cp-kafka:7.7.7");
+    private static final DockerImageName KAFKA_IMAGE = DockerImageName.parse("apache/kafka:4.3.1");
 
     static Network testNetwork = Network.newNetwork();
 
@@ -89,8 +89,8 @@ public class NotificationCommentEventPublisherIT {
 
     @Container
     @SuppressWarnings("resource")
-    protected static final  ConfluentKafkaContainer KAFKA_CONTAINER = 
-        new ConfluentKafkaContainer(KAFKA_IMAGE)
+    protected static final KafkaContainer KAFKA_CONTAINER =
+        new KafkaContainer(KAFKA_IMAGE)
             .withNetwork(testNetwork)
             .withNetworkAliases("test-kafka");
 
