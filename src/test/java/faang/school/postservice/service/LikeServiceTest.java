@@ -2,6 +2,7 @@ package faang.school.postservice.service;
 
 import faang.school.postservice.client.UserServiceClient;
 import faang.school.postservice.dto.user.UserDto;
+import faang.school.postservice.exception.CommentNotFoundException;
 import faang.school.postservice.exception.UserNotFoundException;
 import faang.school.postservice.model.Comment;
 import faang.school.postservice.model.Like;
@@ -130,6 +131,50 @@ public class LikeServiceTest {
         Assertions.assertThrows(UserNotFoundException.class, () -> {
             likeService.addLikeToComment(postId, null, userId);
         });
+    }
+
+    @Test
+    public void addLikeToComment_publishesAnalyticsAndNotificationEvents() {
+        // Arrange: comment exists and user is valid; no active transaction so after-commit runs inline
+        Long postId = 1L;
+        Long userId = 2L;
+        Long commentId = 3L;
+        Comment comment = new Comment();
+        Post post = new Post();
+        post.setId(postId);
+        post.setAuthorId(9L);
+        comment.setPost(post);
+
+        when(userServiceClient.getUser(userId)).thenReturn(new UserDto(userId, "u", "u@example.com"));
+        when(commentRepository.findById(commentId)).thenReturn(Optional.of(comment));
+        Like savedLike = Like.builder().userId(userId).comment(comment).build();
+        when(likeRepository.save(any(Like.class))).thenReturn(savedLike);
+
+        // Act: signature is addLikeToComment(commentId, postId, currentUserId)
+        likeService.addLikeToComment(commentId, postId, userId);
+
+        // Assert: both publishers dispatched with the saved like
+        verify(analyticsLikeEventPublisher, times(1)).publishEvent(savedLike);
+        verify(notificationLikeEventPublisher, times(1)).publishEvent(savedLike);
+    }
+
+    @Test
+    public void addLikeToComment_throwsCommentNotFound_whenCommentMissing() {
+        // Arrange: user valid but comment absent
+        Long postId = 1L;
+        Long userId = 2L;
+        Long commentId = 3L;
+
+        when(userServiceClient.getUser(userId)).thenReturn(new UserDto(userId, "u", "u@example.com"));
+        when(commentRepository.findById(commentId)).thenReturn(Optional.empty());
+
+        // Act & Assert: typed failure and no publish/save side effects
+        Assertions.assertThrows(CommentNotFoundException.class, () -> {
+            likeService.addLikeToComment(commentId, postId, userId);
+        });
+        verify(likeRepository, never()).save(any(Like.class));
+        verify(analyticsLikeEventPublisher, never()).publishEvent(any());
+        verify(notificationLikeEventPublisher, never()).publishEvent(any());
     }
 
     @Test

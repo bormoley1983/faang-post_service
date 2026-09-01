@@ -112,8 +112,10 @@ public class LikeService {
                 .build();
 
         comment.getLikes().add(like);
-        likeRepository.save(like);
+        Like savedLike = likeRepository.save(like);
         commentRepository.save(comment);
+        TransactionHooks.runAfterCommit(() -> analyticsLikeEventPublisher.publishEvent(savedLike));
+        TransactionHooks.runAfterCommit(() -> notificationLikeEventPublisher.publishEvent(savedLike));
     }
 
     @Transactional

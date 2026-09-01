@@ -165,10 +165,6 @@ app:
     topics:
       analytics:
         like: ${KAFKA_ANALYTICS_LIKE_TOPIC:analytics_like_topic}
-  thread-pool:
-    core-size: 5
-    max-size: 10
-    queue-capacity: 100
   speller:
     url: ${SPELLCHECKER_URL:"https://speller.yandex.net/services/spellservice.json"}
     max-request-uri-length: 10000
