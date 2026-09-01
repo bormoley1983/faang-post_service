@@ -3,11 +3,9 @@ package faang.school.postservice.repository;
 import faang.school.postservice.model.Like;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
-import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-@Repository
 public interface LikeRepository extends CrudRepository<Like, Long> {
 
     void deleteByUserIdAndPostId(Long userId, Long postId);

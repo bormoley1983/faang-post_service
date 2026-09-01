@@ -1,7 +1,6 @@
 package faang.school.postservice.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import faang.school.postservice.config.context.UserContext;

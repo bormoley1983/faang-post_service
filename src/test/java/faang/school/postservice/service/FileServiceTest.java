@@ -1,8 +1,6 @@
 package faang.school.postservice.service;
 
 import faang.school.postservice.config.AwsS3ApiConfig;
-import faang.school.postservice.model.Post;
-import faang.school.postservice.model.Resource;
 import faang.school.postservice.service.aws.S3Service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,7 +14,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
