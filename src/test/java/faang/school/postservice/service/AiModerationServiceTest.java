@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,18 @@ class AiModerationServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(aiModerationService, "enabled", true);
         ReflectionTestUtils.setField(aiModerationService, "API_URL", "http://test-api/toxicity");
+    }
+
+    @Test
+    void isToxic_whenAiIntegrationDisabled_returnsFalseWithoutCallingExternalApi() {
+        ReflectionTestUtils.setField(aiModerationService, "enabled", false);
+
+        boolean result = aiModerationService.isToxic("content");
+
+        assertThat(result).isFalse();
+        verifyNoInteractions(restTemplate);
     }
 
     @Test

@@ -20,6 +20,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class AiModerationService {
+    @Value("${moderation.ai-enabled:false}")
+    private boolean enabled;
     @Value("${moderation.api-url}")
     private String API_URL;
     private final static double TOXICITY_NORMAL_VALUE = 0.7;
@@ -27,6 +29,9 @@ public class AiModerationService {
     private static final Logger log = LoggerFactory.getLogger(AiModerationService.class);
 
     public boolean isToxic(String text) {
+        if (!enabled) {
+            return false;
+        }
         if (text == null || text.isBlank()) {
             log.warn("Bad words list contains null or empty string.");
             return false;
