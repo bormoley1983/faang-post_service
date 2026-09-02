@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -99,11 +98,9 @@ public class S3Service {
             ResponseBytes<GetObjectResponse> responseBytes = future.join();
 
             return responseBytes.asByteArray();
-        } catch (
-                S3Exception e) {
-            logger.error(e.awsErrorDetails().errorMessage());
-            System.exit(1);
+        } catch (RuntimeException e) {
+            logger.error("Failed to download object", e);
+            throw new IllegalStateException("Failed to download object", e);
         }
-        return new byte[0];
     }
 }

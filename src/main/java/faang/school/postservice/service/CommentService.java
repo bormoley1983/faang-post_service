@@ -137,6 +137,9 @@ public class CommentService {
         String oldLargeImageKey = comment.getLargeImageFileKey();
 
         String fileName = image.getContentType();
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("Image content type is required");
+        }
         String format = fileName.substring(fileName.lastIndexOf('/') + 1);
 
         String keyLarge = generateImageKey(comment, format, "large");

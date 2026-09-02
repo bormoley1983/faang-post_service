@@ -17,8 +17,9 @@ import java.util.Optional;
 @Repository
 @RequiredArgsConstructor
 public class PostCacheRepository {
+    private static final String POST_PREFIX = "post:";
+
     private final RedisTemplate<String, Post> redisTemplate;
-    private final String POST_PREFIX = "post:";
 
     public void save(Post post, Duration ttl) {
         String key = POST_PREFIX + post.getId();

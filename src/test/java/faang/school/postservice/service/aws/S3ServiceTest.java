@@ -18,6 +18,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -30,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -135,5 +137,15 @@ public class S3ServiceTest {
         verify(s3AsyncClient).getObject(getObjectRequestCaptor.capture(), any(AsyncResponseTransformer.class));
         assertEquals(bucketName, getObjectRequestCaptor.getValue().bucket());
         assertEquals(keyName, getObjectRequestCaptor.getValue().key());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getObjectBytesWhenS3FailsThrowsInsteadOfTerminatingTheProcess() {
+        when(s3AsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class)))
+                .thenThrow(S3Exception.builder().message("download failed").build());
+
+        assertThrows(IllegalStateException.class,
+                () -> s3Service.getObjectBytes("test-bucket", "test-key"));
     }
 }

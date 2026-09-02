@@ -245,6 +245,15 @@ public class CommentServiceTest {
     }
 
     @Test
+    void attachImageToCommentRejectsMissingContentType() {
+        MultipartFile contentTypeMissing = mock(MultipartFile.class);
+        when(commentRepository.findById(COMMENT_ID)).thenReturn(Optional.of(comment));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                commentService.attachImageToComment(COMMENT_ID, contentTypeMissing, AUTHOR_ID));
+    }
+
+    @Test
     public void getCommentImageTest() throws IOException {
         when(commentRepository.findById(COMMENT_ID)).thenReturn(Optional.of(comment));
         when(awsService.downloadFile(anyString(), anyString())).thenReturn(testBytes);

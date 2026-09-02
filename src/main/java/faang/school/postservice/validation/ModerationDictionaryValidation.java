@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Set;
 
 @Component
-public class ModerationDictionaryValidation {
+public final class ModerationDictionaryValidation {
 
     private static final Logger log = LoggerFactory.getLogger(ModerationDictionaryValidation.class);
     private final Set<String> badWords;
