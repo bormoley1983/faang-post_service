@@ -61,7 +61,6 @@ spring:
 
 springdoc:
   swagger-ui:
-    path: "/documentation.html"
     enabled: ${SWAGGERUI_ENABLED:true}
   api-docs:
     enabled: ${API_DOCS_ENABLED:true}
