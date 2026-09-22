@@ -138,6 +138,24 @@ user-banner:
   cron: "0 0 0 * * *"
   posts-count-for-ban: 5
 
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: post-service
+      environment: ${METRICS_ENVIRONMENT:local}
+      cluster: ${METRICS_CLUSTER:local}
+
 schedulers:
   config:
     assignedTreads: 10
